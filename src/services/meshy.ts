@@ -1,5 +1,11 @@
 const API_KEY = import.meta.env.VITE_MESHY_API_KEY || 'msy_mIsdA4RZoWvvkRSIE6b4zegEDFt1rODXalKF'
-const BASE = 'https://api.meshy.ai/openapi/v2'
+const BASE = '/meshy-api/openapi/v2'
+
+/** Rewrite Meshy asset URLs to go through our CORS proxy */
+export function proxyAssetUrl(url: string): string {
+  if (!url) return url
+  return url.replace('https://assets.meshy.ai', '/meshy-assets')
+}
 
 export type MeshyStatus = 'PENDING' | 'IN_PROGRESS' | 'SUCCEEDED' | 'FAILED' | 'EXPIRED'
 

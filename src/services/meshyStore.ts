@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { MeshyTask } from './meshy'
-import { createTextTo3D, pollTask, listTasks } from './meshy'
+import { createTextTo3D, pollTask, listTasks, proxyAssetUrl } from './meshy'
 
 interface MeshyState {
   tasks: MeshyTask[]
@@ -60,7 +60,13 @@ export const useMeshyStore = create<MeshyState>((set) => ({
 
   fetchHistory: async () => {
     try {
-      const tasks = await listTasks()
+      const tasks = (await listTasks()).map(t => ({
+        ...t,
+        model_urls: t.model_urls ? {
+          ...t.model_urls,
+          glb: t.model_urls.glb ? proxyAssetUrl(t.model_urls.glb) : undefined,
+        } : undefined,
+      }))
       set({ tasks })
     } catch {
       // silently fail on history fetch

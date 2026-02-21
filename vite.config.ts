@@ -7,5 +7,17 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3000,
+    proxy: {
+      '/meshy-api': {
+        target: 'https://api.meshy.ai',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/meshy-api/, ''),
+      },
+      '/meshy-assets': {
+        target: 'https://assets.meshy.ai',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/meshy-assets/, ''),
+      },
+    },
   },
 })
