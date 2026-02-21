@@ -9,9 +9,14 @@ export interface AgentData extends Record<string, unknown> {
   model: string
   status: AgentStatus
   lastActivity: string
+  lastActivityMs?: number
   messageCount: number
   sessionKey?: string
   description?: string
+  sessionCount?: number
+  activeSessions?: number
+  contextTokens?: number
+  reasoningLevel?: string
 }
 
 export interface Task {

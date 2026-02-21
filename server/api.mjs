@@ -44,17 +44,41 @@ async function getAgents() {
       const mainKey = `agent:${agentId}:main`
       const mainSession = data[mainKey]
 
+      // Count sessions by status
+      const allSessions = Object.entries(data)
+      const activeSessions = allSessions.filter(([k, v]) => {
+        const age = Date.now() - (v.updatedAt || 0)
+        return age < 300_000 // active within 5min
+      }).length
+
+      // Count JSONL files for message estimation
+      let messageEstimate = 0
+      try {
+        const sessDir = path.join(AGENTS_DIR, agentId, 'sessions')
+        const files = await fs.readdir(sessDir)
+        const jsonlFiles = files.filter(f => f.endsWith('.jsonl'))
+        for (const f of jsonlFiles) {
+          try {
+            const stat = await fs.stat(path.join(sessDir, f))
+            messageEstimate += Math.floor(stat.size / 2000) // rough estimate: ~2KB per message turn
+          } catch {}
+        }
+      } catch {}
+
       agents.push({
         id: agentId,
-        label: agentId === 'main' ? 'Eugenio (main)' : agentId.charAt(0).toUpperCase() + agentId.slice(1),
+        label: agentId === 'main' ? 'Eugenio' : agentId.charAt(0).toUpperCase() + agentId.slice(1),
         model: mainSession?.model || 'unknown',
         status: getAgentStatus(mainSession),
         lastActivity: formatTimeDiff(mainSession?.updatedAt),
         lastActivityMs: mainSession?.updatedAt || 0,
-        messageCount: 0, // will be counted from session
-        description: agentId === 'main' ? 'Main assistant — processes all requests' : `${agentId} background agent`,
+        messageCount: messageEstimate,
+        description: agentId === 'main' ? 'Main assistant — core agent' : `${agentId} agent`,
         sessionKey: mainKey,
-        sessionCount: Object.keys(data).length,
+        sessionCount: allSessions.length,
+        activeSessions,
+        contextTokens: mainSession?.contextTokens || 0,
+        reasoningLevel: mainSession?.reasoningLevel || 'off',
       })
     }
   } catch (e) {
