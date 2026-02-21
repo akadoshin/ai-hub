@@ -1,4 +1,4 @@
-import { useRef, Suspense } from 'react'
+import { useRef, Suspense, useState, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Html, Sphere, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
@@ -12,19 +12,44 @@ interface SatelliteNodeProps {
   onClick: () => void
 }
 
-function DroneModel() {
-  try {
-    const { scene } = useGLTF('/models/drone.glb')
-    return <primitive object={scene.clone()} scale={[0.4, 0.4, 0.4]} />
-  } catch {
-    return null
-  }
+/** Drone model — surveillance/monitoring companion */
+function DroneModel({ color, intensity }: { color: string; intensity: number }) {
+  const ref = useRef<THREE.Group>(null)
+  const { scene } = useGLTF('/models/drone.glb')
+
+  useEffect(() => {
+    scene.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mat = (child as THREE.Mesh).material as THREE.MeshStandardMaterial
+        if (mat?.isMeshStandardMaterial) {
+          mat.emissive = new THREE.Color(color)
+          mat.emissiveIntensity = intensity
+          mat.needsUpdate = true
+        }
+      }
+    })
+  }, [scene, color, intensity])
+
+  useFrame(({ clock }) => {
+    if (ref.current) {
+      // Subtle hover wobble
+      ref.current.rotation.y = Math.sin(clock.elapsedTime * 0.8) * 0.1
+      ref.current.position.y = Math.sin(clock.elapsedTime * 1.5) * 0.02
+    }
+  })
+
+  return (
+    <group ref={ref} scale={[0.35, 0.35, 0.35]}>
+      <primitive object={scene.clone()} />
+    </group>
+  )
 }
 
 export function SatelliteNode({ agent, index, totalSatellites, selected, onClick }: SatelliteNodeProps) {
   const groupRef = useRef<THREE.Group>(null)
   const bodyRef = useRef<THREE.Mesh>(null)
   const lineRef = useRef<THREE.Line>(null)
+  const [hasModel, setHasModel] = useState(false)
 
   const isActive = agent.status === 'active' || agent.status === 'thinking'
   const orbitRadius = 3.5
@@ -35,6 +60,12 @@ export function SatelliteNode({ agent, index, totalSatellites, selected, onClick
   }[agent.status] ?? '#445544'
 
   const modelShort = agent.model.replace('anthropic/', '').replace('claude-', '')
+
+  useEffect(() => {
+    fetch('/models/drone.glb', { method: 'HEAD' })
+      .then(r => setHasModel(r.ok))
+      .catch(() => setHasModel(false))
+  }, [])
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime
@@ -62,7 +93,7 @@ export function SatelliteNode({ agent, index, totalSatellites, selected, onClick
 
   return (
     <>
-      {/* Tether */}
+      {/* Tether line */}
       <line ref={lineRef as any}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[new Float32Array(6), 3]} />
@@ -70,38 +101,42 @@ export function SatelliteNode({ agent, index, totalSatellites, selected, onClick
         <lineBasicMaterial color={statusColor} transparent opacity={isActive ? 0.15 : 0.05} />
       </line>
 
-      <group ref={groupRef}>
-        {/* Try Meshy drone model */}
-        <Suspense fallback={null}>
-          <DroneModel />
-        </Suspense>
-
-        {/* Fallback body */}
-        <Sphere ref={bodyRef} args={[0.18, 20, 20]} onClick={onClick} castShadow>
-          <meshStandardMaterial
-            color="#151515"
-            emissive={statusColor}
-            emissiveIntensity={isActive ? 0.4 : 0.08}
-            roughness={0.25}
-            metalness={0.9}
-          />
-        </Sphere>
-
-        {/* Wireframe shell */}
-        <mesh>
-          <octahedronGeometry args={[0.24, 0]} />
-          <meshBasicMaterial color={statusColor} wireframe transparent opacity={isActive ? 0.12 : 0.03} />
-        </mesh>
+      <group ref={groupRef} onClick={onClick}>
+        {/* 3D Model or fallback */}
+        {hasModel ? (
+          <Suspense fallback={
+            <Sphere args={[0.15, 12, 12]}>
+              <meshBasicMaterial color={statusColor} wireframe transparent opacity={0.2} />
+            </Sphere>
+          }>
+            <DroneModel color={statusColor} intensity={isActive ? 0.3 : 0.05} />
+          </Suspense>
+        ) : (
+          <>
+            <Sphere ref={bodyRef} args={[0.18, 20, 20]} castShadow>
+              <meshStandardMaterial
+                color="#151515"
+                emissive={statusColor}
+                emissiveIntensity={isActive ? 0.4 : 0.08}
+                roughness={0.25} metalness={0.9}
+              />
+            </Sphere>
+            <mesh>
+              <octahedronGeometry args={[0.24, 0]} />
+              <meshBasicMaterial color={statusColor} wireframe transparent opacity={isActive ? 0.12 : 0.03} />
+            </mesh>
+          </>
+        )}
 
         {selected && (
           <mesh rotation={[Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[0.32, 0.34, 32]} />
+            <ringGeometry args={[0.35, 0.37, 32]} />
             <meshBasicMaterial color={statusColor} transparent opacity={0.35} />
           </mesh>
         )}
 
         {/* ── Always-visible info ── */}
-        <Html position={[0, 0.55, 0]} center style={{ pointerEvents: 'none', userSelect: 'none' }}>
+        <Html position={[0, 0.6, 0]} center style={{ pointerEvents: 'none', userSelect: 'none' }}>
           <div style={{
             textAlign: 'center',
             background: '#0a0a0aee',
@@ -135,7 +170,7 @@ export function SatelliteNode({ agent, index, totalSatellites, selected, onClick
 
         {/* Extended detail on select */}
         {selected && (
-          <Html position={[0.7, 0, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+          <Html position={[0.8, 0, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
             <div style={{
               background: '#0c0c0cf5',
               border: `1px solid ${statusColor}25`,
@@ -150,7 +185,7 @@ export function SatelliteNode({ agent, index, totalSatellites, selected, onClick
               <DetailRow label="Sessions" value={`${agent.activeSessions || 0} active / ${agent.sessionCount || 0} total`} />
               <DetailRow label="Messages" value={agent.messageCount > 0 ? `~${agent.messageCount}` : '—'} />
               <DetailRow label="Last active" value={agent.lastActivity} />
-              <DetailRow label="Description" value={agent.description || '—'} />
+              <DetailRow label="3D Asset" value={hasModel ? 'drone.glb ✓' : 'procedural'} />
             </div>
           </Html>
         )}

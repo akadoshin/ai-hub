@@ -1,4 +1,4 @@
-import { useRef, Suspense } from 'react'
+import { useRef, Suspense, useState, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Html, Sphere, MeshDistortMaterial, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
@@ -10,20 +10,43 @@ interface CoreNodeProps {
   onClick: () => void
 }
 
-/** Try to load the Meshy-generated core model */
-function CoreModel() {
-  try {
-    const { scene } = useGLTF('/models/core.glb')
-    return <primitive object={scene.clone()} scale={[0.8, 0.8, 0.8]} />
-  } catch {
-    return null
-  }
+/** Brain model — the AI core representation */
+function BrainModel({ color, intensity }: { color: string; intensity: number }) {
+  const ref = useRef<THREE.Group>(null)
+  const { scene } = useGLTF('/models/brain.glb')
+
+  useEffect(() => {
+    // Apply emissive material to all meshes in the model
+    scene.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh
+        const mat = mesh.material as THREE.MeshStandardMaterial
+        if (mat && mat.isMeshStandardMaterial) {
+          mat.emissive = new THREE.Color(color)
+          mat.emissiveIntensity = intensity
+          mat.needsUpdate = true
+        }
+      }
+    })
+  }, [scene, color, intensity])
+
+  useFrame(({ clock }) => {
+    if (ref.current) {
+      ref.current.rotation.y = clock.elapsedTime * 0.15
+    }
+  })
+
+  return (
+    <group ref={ref} scale={[0.7, 0.7, 0.7]} position={[0, 0, 0]}>
+      <primitive object={scene.clone()} />
+    </group>
+  )
 }
 
 export function CoreNode({ agent, selected, onClick }: CoreNodeProps) {
-  const coreRef = useRef<THREE.Mesh>(null)
   const shellRef = useRef<THREE.Mesh>(null)
   const ringRef = useRef<THREE.Mesh>(null)
+  const [hasModel, setHasModel] = useState(false)
 
   const isActive = agent.status === 'active' || agent.status === 'thinking'
   const isThinking = agent.status === 'thinking'
@@ -32,73 +55,80 @@ export function CoreNode({ agent, selected, onClick }: CoreNodeProps) {
     active: '#00ff88', thinking: '#60a5fa', idle: '#445544', error: '#f87171',
   }[agent.status] ?? '#00ff88'
 
+  // Check if brain model exists
+  useEffect(() => {
+    fetch('/models/brain.glb', { method: 'HEAD' })
+      .then(r => setHasModel(r.ok))
+      .catch(() => setHasModel(false))
+  }, [])
+
   useFrame(({ clock }) => {
     const t = clock.elapsedTime
-    if (coreRef.current) {
-      coreRef.current.scale.setScalar(1 + Math.sin(t * 0.6) * 0.02)
-      coreRef.current.rotation.y += isThinking ? 0.006 : 0.001
-    }
     if (shellRef.current) {
-      shellRef.current.rotation.x = t * 0.08
-      shellRef.current.rotation.z = t * 0.05
+      shellRef.current.rotation.x = t * 0.06
+      shellRef.current.rotation.z = t * 0.04
     }
     if (ringRef.current) {
-      ringRef.current.rotation.z = t * 0.15
+      ringRef.current.rotation.z = t * 0.12
     }
   })
 
   const modelShort = agent.model.replace('anthropic/', '').replace('claude-', '')
 
   return (
-    <group position={[0, 0, 0]}>
-      {/* Inner glow */}
-      <Sphere args={[0.25, 24, 24]}>
-        <meshBasicMaterial color={statusColor} transparent opacity={isActive ? 0.3 : 0.1} />
-      </Sphere>
+    <group position={[0, 0, 0]} onClick={onClick}>
+      {/* 3D Model: brain.glb or fallback icosahedron */}
+      {hasModel ? (
+        <Suspense fallback={
+          <Sphere args={[0.45, 24, 24]}>
+            <meshBasicMaterial color={statusColor} wireframe transparent opacity={0.2} />
+          </Sphere>
+        }>
+          <BrainModel color={statusColor} intensity={isActive ? 0.4 : 0.1} />
+        </Suspense>
+      ) : (
+        <>
+          <Sphere args={[0.25, 24, 24]}>
+            <meshBasicMaterial color={statusColor} transparent opacity={isActive ? 0.3 : 0.1} />
+          </Sphere>
+          <mesh castShadow>
+            <icosahedronGeometry args={[0.55, 3]} />
+            <MeshDistortMaterial
+              color="#111"
+              emissive={statusColor}
+              emissiveIntensity={isActive ? 0.35 : 0.08}
+              distort={isThinking ? 0.15 : 0.04}
+              speed={isThinking ? 2.5 : 0.6}
+              roughness={0.15} metalness={0.9}
+              transparent opacity={0.8}
+            />
+          </mesh>
+        </>
+      )}
 
-      {/* Try Meshy model, fallback to icosahedron */}
-      <Suspense fallback={null}>
-        <CoreModel />
-      </Suspense>
-
-      {/* Core body */}
-      <mesh ref={coreRef} onClick={onClick} castShadow>
-        <icosahedronGeometry args={[0.55, 3]} />
-        <MeshDistortMaterial
-          color="#111"
-          emissive={statusColor}
-          emissiveIntensity={isActive ? 0.35 : 0.08}
-          distort={isThinking ? 0.15 : 0.04}
-          speed={isThinking ? 2.5 : 0.6}
-          roughness={0.15}
-          metalness={0.9}
-          transparent opacity={0.8}
-        />
-      </mesh>
-
-      {/* Wireframe structure */}
+      {/* Wireframe shell — always present, shows structure around the model */}
       <mesh ref={shellRef}>
-        <icosahedronGeometry args={[0.62, 1]} />
-        <meshBasicMaterial color={statusColor} wireframe transparent opacity={isActive ? 0.12 : 0.04} />
+        <icosahedronGeometry args={[0.72, 1]} />
+        <meshBasicMaterial color={statusColor} wireframe transparent opacity={isActive ? 0.1 : 0.03} />
       </mesh>
 
-      {/* Data ring — represents context window usage */}
+      {/* Context ring — shows token usage as arc */}
       {agent.contextTokens && agent.contextTokens > 0 && (
         <mesh ref={ringRef} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[0.75, 0.012, 8, 64, Math.PI * 2 * Math.min((agent.contextTokens || 0) / 200000, 1)]} />
+          <torusGeometry args={[0.82, 0.012, 8, 64, Math.PI * 2 * Math.min(agent.contextTokens / 200000, 1)]} />
           <meshBasicMaterial color={statusColor} transparent opacity={0.5} />
         </mesh>
       )}
 
       {selected && (
         <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.82, 0.85, 64]} />
-          <meshBasicMaterial color={statusColor} transparent opacity={0.3} />
+          <ringGeometry args={[0.88, 0.91, 64]} />
+          <meshBasicMaterial color={statusColor} transparent opacity={0.25} />
         </mesh>
       )}
 
       {/* ── Always-visible info panel ── */}
-      <Html position={[0, 1.1, 0]} center style={{ pointerEvents: 'none', userSelect: 'none' }}>
+      <Html position={[0, 1.2, 0]} center style={{ pointerEvents: 'none', userSelect: 'none' }}>
         <div style={{
           textAlign: 'center',
           background: '#0a0a0aee',
@@ -106,9 +136,8 @@ export function CoreNode({ agent, selected, onClick }: CoreNodeProps) {
           border: `1px solid ${statusColor}30`,
           borderRadius: 10,
           padding: '8px 14px',
-          minWidth: 160,
+          minWidth: 170,
         }}>
-          {/* Name + status */}
           <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 3 }}>
             {agent.label}
           </div>
@@ -126,7 +155,6 @@ export function CoreNode({ agent, selected, onClick }: CoreNodeProps) {
             {agent.status.toUpperCase()}
           </div>
 
-          {/* Key metrics — always visible */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px 12px', marginTop: 4 }}>
             <Metric label="Model" value={modelShort} color={statusColor} />
             <Metric label="Sessions" value={`${agent.activeSessions || 0}/${agent.sessionCount || 0}`} />
@@ -175,7 +203,7 @@ export function CoreNode({ agent, selected, onClick }: CoreNodeProps) {
             <DetailRow label="Last active" value={agent.lastActivity} />
             <DetailRow label="Context tokens" value={agent.contextTokens ? `${(agent.contextTokens / 1000).toFixed(0)}k / 200k` : '—'} />
             <DetailRow label="Reasoning" value={agent.reasoningLevel || 'off'} />
-            <DetailRow label="Description" value={agent.description || '—'} />
+            <DetailRow label="3D Asset" value={hasModel ? 'brain.glb ✓' : 'procedural fallback'} />
           </div>
         </Html>
       )}

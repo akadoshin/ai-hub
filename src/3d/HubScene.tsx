@@ -7,6 +7,7 @@ import { CoreNode } from './CoreNode'
 import { SatelliteNode } from './SatelliteNode'
 import { WorkerNode } from './WorkerNode'
 import { Ground } from './Ground'
+import { CommandStation } from './CommandStation'
 
 /**
  * HubScene — the 3D simulation.
@@ -57,6 +58,9 @@ function SceneContent() {
 
       {/* Ground plane */}
       <Ground />
+
+      {/* Command station — terminal model at base (represents the Pi) */}
+      <CommandStation />
       <ContactShadows position={[0, -2.49, 0]} opacity={0.2} scale={20} blur={2} far={8} />
 
       {/* Core agent — center of everything */}
