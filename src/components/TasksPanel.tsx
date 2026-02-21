@@ -76,7 +76,7 @@ function TaskCard({ task }: { task: Task }) {
   )
 }
 
-export function TasksPanel() {
+export function TasksPanel({ sidebar: _sidebar }: { sidebar?: boolean }) {
   const tasks = useHubStore(s => s.tasks)
   const running = tasks.filter(t => t.status === 'running')
   const done = tasks.filter(t => t.status !== 'running')
