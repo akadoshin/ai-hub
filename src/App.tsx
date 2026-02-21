@@ -16,8 +16,13 @@ export default function App() {
   const [view, setView] = useState<ViewMode>('3d')
 
   useEffect(() => {
-    loadMockData()
     initWS()
+    // loadMockData only if no real data arrives within 3s
+    const timeout = setTimeout(() => {
+      const { agents } = useHubStore.getState()
+      if (agents.length === 0) loadMockData()
+    }, 3000)
+    return () => clearTimeout(timeout)
   }, [])
 
   return (

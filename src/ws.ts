@@ -1,71 +1,95 @@
+/**
+ * Real-time connection to OpenClaw via our API server.
+ * Uses Server-Sent Events (SSE) for live updates.
+ * Falls back to polling if SSE fails.
+ */
 import { useHubStore } from './store'
+import type { AgentData, Task } from './store'
 
-const WS_URL = 'ws://127.0.0.1:18789'
-let ws: WebSocket | null = null
-let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-let reconnectDelay = 2000
+const API_BASE = '/api'
+let eventSource: EventSource | null = null
+let pollTimer: ReturnType<typeof setInterval> | null = null
 
-function connect() {
+async function fetchInitialState() {
   try {
-    ws = new WebSocket(WS_URL)
+    const [agentsRes, sessionsRes] = await Promise.all([
+      fetch(`${API_BASE}/agents`),
+      fetch(`${API_BASE}/sessions`),
+    ])
 
-    ws.onopen = () => {
-      console.log('[ws] connected to OpenClaw')
-      useHubStore.getState().setConnected(true)
-      reconnectDelay = 2000
-      ws?.send(JSON.stringify({ type: 'auth', token: '' }))
-      ws?.send(JSON.stringify({ type: 'subscribe', events: ['session_update', 'agent_update', 'task_progress', 'message_event'] }))
+    if (agentsRes.ok) {
+      const agents: AgentData[] = await agentsRes.json()
+      const store = useHubStore.getState()
+      agents.forEach(a => store.upsertAgent(a))
     }
 
-    ws.onmessage = (ev) => {
-      try {
-        const msg = JSON.parse(ev.data)
-        const store = useHubStore.getState()
-
-        if (msg.type === 'agent_update' && msg.agent) {
-          store.upsertAgent(msg.agent)
-        } else if (msg.type === 'session_update' && msg.session) {
-          store.upsertTask({
-            id: msg.session.key || msg.session.id,
-            label: msg.session.label || msg.session.key || 'Session',
-            model: msg.session.model || 'unknown',
-            status: msg.session.active ? 'running' : 'completed',
-            elapsed: msg.session.elapsed || 0,
-            startTime: msg.session.startTime || Date.now(),
-            lastMessage: msg.session.lastMessage || '',
-            agentId: msg.session.agentId,
-          })
-        } else if (msg.type === 'message_event') {
-          store.incrementMessages()
-        }
-      } catch (e) {
-        // ignore parse errors
-      }
+    if (sessionsRes.ok) {
+      const sessions: Task[] = await sessionsRes.json()
+      const store = useHubStore.getState()
+      sessions.forEach(s => store.upsertTask(s))
     }
 
-    ws.onerror = () => {
-      useHubStore.getState().setConnected(false)
-    }
-
-    ws.onclose = () => {
-      useHubStore.getState().setConnected(false)
-      ws = null
-      if (reconnectTimer) clearTimeout(reconnectTimer)
-      reconnectTimer = setTimeout(() => {
-        reconnectDelay = Math.min(reconnectDelay * 1.5, 30000)
-        connect()
-      }, reconnectDelay)
-    }
-  } catch (e) {
+    useHubStore.getState().setConnected(true)
+  } catch {
     useHubStore.getState().setConnected(false)
   }
 }
 
+function connectSSE() {
+  try {
+    eventSource = new EventSource(`${API_BASE}/events`)
+
+    eventSource.onopen = () => {
+      useHubStore.getState().setConnected(true)
+    }
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        const store = useHubStore.getState()
+
+        if (data.type === 'update') {
+          if (data.agents) {
+            data.agents.forEach((a: AgentData) => store.upsertAgent(a))
+          }
+          if (data.sessions) {
+            data.sessions.forEach((s: Task) => store.upsertTask(s))
+          }
+        }
+      } catch {}
+    }
+
+    eventSource.onerror = () => {
+      useHubStore.getState().setConnected(false)
+      eventSource?.close()
+      eventSource = null
+      // Fallback: poll every 5s
+      startPolling()
+      // Try SSE again after 10s
+      setTimeout(connectSSE, 10000)
+    }
+  } catch {
+    startPolling()
+  }
+}
+
+function startPolling() {
+  if (pollTimer) return
+  pollTimer = setInterval(fetchInitialState, 5000)
+}
+
 export function initWS() {
-  connect()
+  // Fetch initial state immediately
+  fetchInitialState()
+  // Then connect SSE for live updates
+  connectSSE()
 }
 
 export function disconnectWS() {
-  if (reconnectTimer) clearTimeout(reconnectTimer)
-  ws?.close()
+  eventSource?.close()
+  eventSource = null
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
 }
