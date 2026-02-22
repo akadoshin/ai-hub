@@ -12,17 +12,6 @@ import type { AgentData } from '../store'
 
 // ── API ─────────────────────────────────────────────────────────────────────
 
-async function callGateway(method: string, params: Record<string, unknown>) {
-  const res = await fetch('/api/gateway/call', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ method, params }),
-  })
-  const data = await res.json()
-  if (!res.ok || data?.error) throw new Error(data?.error || `${method} failed`)
-  return data
-}
-
 async function createAgent(name: string, workspace: string) {
   const res = await fetch('/api/gateway/agents/create', {
     method: 'POST',

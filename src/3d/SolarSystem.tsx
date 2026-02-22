@@ -1,6 +1,6 @@
-import { useRef, useCallback, useMemo, useState, useEffect } from 'react'
+import { Suspense, useRef, useCallback, useMemo, useState, useEffect } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { OrbitControls, Html, Sphere, Line } from '@react-three/drei'
+import { OrbitControls, Html, Sphere, Line, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import { useHubStore } from '../store'
 import type { AgentData, Task } from '../store'
@@ -23,6 +23,11 @@ const STATUS_COLOR2: Record<string, string> = {
 }
 
 const ORBIT_RADII = [0, 12, 22, 32, 42]
+const SCENE_HTML_Z: [number, number] = [0, -10]
+const DETAIL_HTML_Z: [number, number] = [2, -8]
+
+useGLTF.preload('/models/star.glb')
+useGLTF.preload('/models/planet-psych.glb')
 
 function layoutAgents(agents: AgentData[]): Map<string, { pos: [number, number, number]; orbit: number }> {
   const m = new Map<string, { pos: [number, number, number]; orbit: number }>()
@@ -67,21 +72,21 @@ const gridDotFrag = `
 function SketchGrid() {
   const { positions, alphas, sizes } = useMemo(() => {
     const pts: number[] = [], als: number[] = [], szs: number[] = []
-    const sp = 3, range = 80
+    const sp = 3, range = 90
     for (let x = -range; x <= range; x += sp) {
       for (let z = -range; z <= range; z += sp) {
         pts.push(x, -0.1, z)
         const dist = Math.sqrt(x * x + z * z)
-        const fade = Math.max(0.15, 1 - dist / range)
+        const fade = Math.max(0.2, 1 - dist / range)
         const isMajor = Math.abs(x % (sp * 4)) < 0.1 && Math.abs(z % (sp * 4)) < 0.1
         const isMid = Math.abs(x % (sp * 4)) < 0.1 || Math.abs(z % (sp * 4)) < 0.1
-        als.push(isMajor ? fade * 1.2 : isMid ? fade * 0.6 : fade * 0.3)
-        szs.push(isMajor ? 4.5 : isMid ? 2.8 : 1.8)
+        als.push(isMajor ? fade * 0.55 : isMid ? fade * 0.32 : fade * 0.12)
+        szs.push(isMajor ? 3.2 : isMid ? 2.0 : 1.3)
       }
     }
     return { positions: new Float32Array(pts), alphas: new Float32Array(als), sizes: new Float32Array(szs) }
   }, [])
-  const uniforms = useMemo(() => ({ uColor: { value: new THREE.Color('#445566') } }), [])
+  const uniforms = useMemo(() => ({ uColor: { value: new THREE.Color('#3a5268') } }), [])
   return (
     <points>
       <bufferGeometry>
@@ -97,7 +102,7 @@ function SketchGrid() {
 function SketchGridLines() {
   const lines = useMemo(() => {
     const segs: THREE.Vector3[][] = []
-    const range = 80, sp = 12
+    const range = 90, sp = 10
     for (let x = -range; x <= range; x += sp) {
       const pts: THREE.Vector3[] = []
       for (let z = -range; z <= range; z += 2.5) {
@@ -114,14 +119,27 @@ function SketchGridLines() {
     }
     return segs
   }, [])
-  return <group>{lines.map((pts, i) => <Line key={i} points={pts} color="#334455" lineWidth={0.6} transparent opacity={0.12} />)}</group>
+  return <group>{lines.map((pts, i) => <Line key={i} points={pts} color="#2a3d50" lineWidth={0.4} transparent opacity={0.07} />)}</group>
+}
+
+function GroundReference() {
+  return (
+    <group>
+      <gridHelper args={[180, 72, '#1a3040', '#0e1e2a']} position={[0, -0.16, 0]} />
+      <Line points={[[-92, -0.11, 0], [92, -0.11, 0]]} color="#2a4a60" lineWidth={0.8} transparent opacity={0.14} />
+      <Line points={[[0, -0.11, -92], [0, -0.11, 92]]} color="#2a4a60" lineWidth={0.8} transparent opacity={0.14} />
+      <Line points={[[-64, -0.11, -64], [64, -0.11, 64]]} color="#1e3040" lineWidth={0.5} transparent opacity={0.06} />
+      <Line points={[[-64, -0.11, 64], [64, -0.11, -64]]} color="#1e3040" lineWidth={0.5} transparent opacity={0.06} />
+    </group>
+  )
 }
 
 // ════════════════════════════════════════════
 // ORBIT RINGS
 // ════════════════════════════════════════════
 
-function SketchOrbitRing({ radius, color, active }: { radius: number; color: string; active: boolean }) {
+function SketchOrbitRing({ radius, color: _color, active }: { radius: number; color: string; active: boolean }) {
+  const groupRef = useRef<THREE.Group>(null)
   const points = useMemo(() => {
     const pts: THREE.Vector3[] = []
     for (let i = 0; i <= 200; i++) {
@@ -131,7 +149,61 @@ function SketchOrbitRing({ radius, color, active }: { radius: number; color: str
     }
     return pts
   }, [radius])
-  return <Line points={points} color={color} lineWidth={active ? 1.2 : 0.8} transparent opacity={active ? 0.25 : 0.1} dashed dashSize={1.2} gapSize={0.6} />
+
+  useFrame(({ clock }) => {
+    if (!groupRef.current) return
+    const speed = 0.012 + 0.18 / Math.max(radius, 1)
+    groupRef.current.rotation.y = clock.elapsedTime * speed
+  })
+
+  const ringColor = active ? '#7ec8ff' : '#8da8c0'
+  const accent = active ? '#b8e4ff' : '#aac0d4'
+
+  return (
+    <group ref={groupRef}>
+      {/* Base solid ring — always visible */}
+      <Line
+        points={points}
+        color={ringColor}
+        lineWidth={active ? 1.8 : 1.4}
+        transparent
+        opacity={active ? 0.7 : 0.48}
+      />
+      {/* Dashed overlay for detail */}
+      <Line
+        points={points}
+        color={accent}
+        lineWidth={active ? 0.9 : 0.6}
+        transparent
+        opacity={active ? 0.45 : 0.22}
+        dashed
+        dashSize={1.2}
+        gapSize={0.6}
+      />
+      {active && (
+        <>
+          {/* Inner glow trace */}
+          <Line
+            points={points}
+            color={accent}
+            lineWidth={3.5}
+            transparent
+            opacity={0.12}
+          />
+          {/* Marker dots */}
+          <Sphere args={[0.18, 8, 8]} position={[radius, 0, 0]}>
+            <meshBasicMaterial color={accent} transparent opacity={0.9} />
+          </Sphere>
+          <Sphere args={[0.11, 8, 8]} position={[-radius * 0.55, 0, radius * 0.82]}>
+            <meshBasicMaterial color={ringColor} transparent opacity={0.7} />
+          </Sphere>
+          <Sphere args={[0.08, 8, 8]} position={[radius * 0.7, 0, -radius * 0.7]}>
+            <meshBasicMaterial color={ringColor} transparent opacity={0.5} />
+          </Sphere>
+        </>
+      )}
+    </group>
+  )
 }
 
 // ════════════════════════════════════════════
@@ -311,15 +383,117 @@ function WireframeShell({ size, color, active }: { size: number; color: string; 
 
 // Orbital ring around planet (equatorial)
 function PlanetRing({ size, color, active }: { size: number; color: string; active: boolean }) {
-  const ref = useRef<THREE.Mesh>(null)
+  const ref = useRef<THREE.Group>(null)
   useFrame(({ clock }) => {
-    if (ref.current) ref.current.rotation.z = clock.elapsedTime * 0.05
+    if (ref.current) {
+      ref.current.rotation.z = clock.elapsedTime * 0.05
+      ref.current.rotation.y = Math.sin(clock.elapsedTime * 0.06) * 0.35
+    }
   })
   return (
-    <mesh ref={ref} rotation={[Math.PI * 0.45, 0, 0]}>
-      <torusGeometry args={[size * 1.3, 0.02, 8, 80]} />
-      <meshBasicMaterial color={color} transparent opacity={active ? 0.2 : 0.06} />
-    </mesh>
+    <group ref={ref} rotation={[Math.PI * 0.45, 0, 0]}>
+      <mesh>
+        <torusGeometry args={[size * 1.3, 0.02, 8, 80]} />
+        <meshBasicMaterial color={color} transparent opacity={active ? 0.22 : 0.08} />
+      </mesh>
+      <mesh>
+        <torusGeometry args={[size * 1.36, 0.008, 8, 120]} />
+        <meshBasicMaterial color={color} transparent opacity={active ? 0.35 : 0.1} />
+      </mesh>
+    </group>
+  )
+}
+
+function cloneMaterials(material: unknown) {
+  if (!material) return material
+  if (Array.isArray(material)) return material.map((m) => m.clone())
+  return (material as THREE.Material).clone()
+}
+
+function normalizeModel(source: THREE.Object3D, targetDiameter: number) {
+  const root = source.clone(true)
+  root.traverse((obj) => {
+    const mesh = obj as THREE.Mesh
+    if (!mesh.isMesh) return
+    mesh.castShadow = true
+    mesh.receiveShadow = true
+    mesh.material = cloneMaterials(mesh.material) as THREE.Material | THREE.Material[]
+  })
+
+  const box = new THREE.Box3().setFromObject(root)
+  const size = new THREE.Vector3()
+  box.getSize(size)
+  const maxDim = Math.max(size.x, size.y, size.z) || 1
+  const scale = targetDiameter / maxDim
+  root.scale.setScalar(scale)
+
+  const centered = new THREE.Box3().setFromObject(root)
+  const center = new THREE.Vector3()
+  centered.getCenter(center)
+  root.position.sub(center)
+  return root
+}
+
+function tintModel(root: THREE.Object3D, color: string, emissiveIntensity: number) {
+  const c = new THREE.Color(color)
+  root.traverse((obj) => {
+    const mesh = obj as THREE.Mesh
+    if (!mesh.isMesh) return
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+    mats.forEach((m) => {
+      const mat = m as THREE.MeshStandardMaterial
+      if ('emissive' in mat && mat.emissive) {
+        mat.emissive.set(c)
+        mat.emissiveIntensity = emissiveIntensity
+      }
+      if ('roughness' in mat) mat.roughness = Math.min(0.9, Math.max(0.15, (mat.roughness ?? 0.5) * 0.8))
+      if ('metalness' in mat) mat.metalness = Math.max(0.08, mat.metalness ?? 0.2)
+      mat.needsUpdate = true
+    })
+  })
+}
+
+function AgentPlanetModel({ isMain, size, color, active }: {
+  isMain: boolean
+  size: number
+  color: string
+  active: boolean
+}) {
+  const star = useGLTF('/models/star.glb') as { scene: THREE.Object3D }
+  const psych = useGLTF('/models/planet-psych.glb') as { scene: THREE.Object3D }
+  const source = isMain ? star.scene : psych.scene
+  const model = useMemo(
+    () => normalizeModel(source, isMain ? size * 2.3 : size * 1.9),
+    [source, isMain, size],
+  )
+
+  useEffect(() => {
+    tintModel(model, color, active ? (isMain ? 0.42 : 0.28) : (isMain ? 0.2 : 0.11))
+  }, [model, color, active, isMain])
+
+  return (
+    <group rotation={[0, Math.PI, 0]}>
+      <primitive object={model} />
+    </group>
+  )
+}
+
+function MoonBodyModel({ diameter, color, active }: {
+  diameter: number
+  color: string
+  active: boolean
+}) {
+  const psych = useGLTF('/models/planet-psych.glb') as { scene: THREE.Object3D }
+  const model = useMemo(() => normalizeModel(psych.scene, diameter), [psych.scene, diameter])
+
+  useEffect(() => {
+    tintModel(model, color, active ? 0.36 : 0.13)
+  }, [model, color, active])
+
+  return (
+    <group rotation={[0, Math.PI * 0.6, 0]}>
+      <primitive object={model} />
+    </group>
   )
 }
 
@@ -330,31 +504,47 @@ function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, cron
 }) {
   const groupRef = useRef<THREE.Group>(null)
   const selRingRef = useRef<THREE.Mesh>(null)
+  const auraRef = useRef<THREE.Mesh>(null)
+  const [hovered, setHovered] = useState(false)
   const c = STATUS_COLOR[agent.status] ?? '#334'
   const c2 = STATUS_COLOR2[agent.status] ?? '#151520'
   const isActive = agent.status === 'active' || agent.status === 'thinking'
   const isMain = agent.id === 'main'
   const size = isMain ? 2.8 : 1.5
   const model = agent.model.replace('anthropic/', '').replace('claude-', '')
+  const showInfo = selected || hovered || isMain || isActive
+  const showDetail = selected || hovered
+  const highlight = selected || hovered
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime
     if (groupRef.current) {
+      groupRef.current.position.x = orbit > 0 ? position[0] + Math.cos(t * 0.12 + orbit) * 0.22 : position[0]
       groupRef.current.position.y = position[1] + Math.sin(t * 0.35 + position[0]) * 0.2
-      // Gentle planet rotation
-      groupRef.current.rotation.y = t * 0.008
+      groupRef.current.position.z = orbit > 0 ? position[2] + Math.sin(t * 0.12 + orbit) * 0.22 : position[2]
+      groupRef.current.rotation.y = t * (isMain ? 0.06 : 0.1)
     }
     if (selRingRef.current) selRingRef.current.rotation.z = t * 0.12
+    if (auraRef.current) {
+      const s = 1 + Math.sin(t * 1.7 + position[2]) * 0.03
+      auraRef.current.scale.set(s, s, s)
+    }
   })
 
   return (
     <group>
-      <group ref={groupRef} position={position} onClick={onClick} onDoubleClick={onDoubleClick}>
-        {/* Wireframe shell — multi-layer */}
-        <WireframeShell size={size} color={c} active={isActive} />
-
-        {/* Liquid blob core */}
-        <LiquidCore size={size} color={c} color2={c2} active={isActive} />
+      <group
+        ref={groupRef}
+        position={position}
+        onClick={onClick}
+        onDoubleClick={onDoubleClick}
+        onPointerEnter={() => setHovered(true)}
+        onPointerLeave={() => setHovered(false)}
+      >
+        {/* Model-based planet body */}
+        <AgentPlanetModel isMain={isMain} size={size} color={c} active={isActive} />
+        <LiquidCore size={size * 0.68} color={c} color2={c2} active={isActive} />
+        {highlight && <WireframeShell size={size * 1.05} color={c} active={isActive} />}
 
         {/* Hot center glow */}
         <Sphere args={[size * 0.15, 12, 12]}>
@@ -367,31 +557,34 @@ function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, cron
 
         {/* Atmosphere layers */}
         <Sphere args={[size * 1.15, 32, 32]}>
-          <meshBasicMaterial color={c} transparent opacity={isActive ? 0.05 : 0.012} side={THREE.BackSide} />
+          <meshBasicMaterial color={c} transparent opacity={isActive ? 0.18 : 0.06} side={THREE.BackSide} />
         </Sphere>
         <Sphere args={[size * 1.35, 24, 24]}>
-          <meshBasicMaterial color={c} transparent opacity={isActive ? 0.02 : 0.005} side={THREE.BackSide} />
+          <meshBasicMaterial color={c} transparent opacity={isActive ? 0.09 : 0.03} side={THREE.BackSide} />
+        </Sphere>
+        <Sphere ref={auraRef} args={[size * 1.65, 20, 20]}>
+          <meshBasicMaterial color={c} transparent opacity={isActive ? 0.14 : 0.05} side={THREE.BackSide} />
         </Sphere>
 
         {/* Equatorial ring */}
         <PlanetRing size={size} color={c} active={isActive} />
 
         {/* Selection ring */}
-        {selected && (
+        {highlight && (
           <group>
             <mesh ref={selRingRef} rotation={[Math.PI / 2, 0, 0]}>
               <torusGeometry args={[size * 1.5, 0.04, 8, 80]} />
-              <meshBasicMaterial color={c} transparent opacity={0.6} />
+              <meshBasicMaterial color={c} transparent opacity={selected ? 0.62 : 0.33} />
             </mesh>
             <mesh rotation={[Math.PI / 2, 0, 0]}>
               <torusGeometry args={[size * 1.55, 0.015, 8, 80]} />
-              <meshBasicMaterial color={c} transparent opacity={0.25} />
+              <meshBasicMaterial color={c} transparent opacity={selected ? 0.25 : 0.13} />
             </mesh>
           </group>
         )}
 
         {/* Lighting */}
-        <pointLight intensity={isMain ? 2.5 : 0.5} color={c} distance={isMain ? 50 : 15} decay={2} />
+        <pointLight intensity={isMain ? 2.8 : 0.7} color={c} distance={isMain ? 58 : 20} decay={2} />
 
         {/* Moons */}
         {crons.map((cron, i) => (
@@ -399,34 +592,37 @@ function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, cron
         ))}
 
         {/* Info label */}
-        <Html position={[0, size + 1.6, 0]} center style={{ pointerEvents: 'none', userSelect: 'none' }}>
-          <div style={{
-            textAlign: 'center', background: '#060609e8', backdropFilter: 'blur(12px)',
-            border: `1px solid ${c}30`, borderRadius: 6, padding: '6px 14px',
-            minWidth: isMain ? 200 : 150, fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-          }}>
-            <div style={{ fontSize: isMain ? 13 : 11, fontWeight: 700, color: '#eee', marginBottom: 4, letterSpacing: '0.04em' }}>
-              {agent.label}
+        {showInfo && (
+          <Html position={[0, size + 1.6, 0]} center zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+            <div style={{
+              textAlign: 'center', background: '#060609e8', backdropFilter: 'blur(12px)',
+              border: `1px solid ${c}30`, borderRadius: 6, padding: '6px 14px',
+              minWidth: isMain ? 200 : 150, fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            }}>
+              <div style={{ fontSize: isMain ? 13 : 11, fontWeight: 700, color: '#eee', marginBottom: 4, letterSpacing: '0.04em' }}>
+                {agent.label}
+              </div>
+              <StatusBadge status={agent.status} color={c} active={isActive} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px 14px', marginTop: 6 }}>
+                <Stat label="MODEL" value={model} />
+                <Stat label="SESSIONS" value={`${agent.activeSessions || 0}/${agent.sessionCount || 0}`} />
+                {isMain && <Stat label="REASONING" value={agent.reasoningLevel || 'off'} />}
+                {crons.length > 0 && <Stat label="CRONS" value={`${crons.length}`} />}
+                {(connections ?? 0) > 0 && <Stat label="LINKS" value={`${connections}`} />}
+              </div>
+              {agent.contextTokens && agent.contextTokens > 0 && <CtxBar tokens={agent.contextTokens} color={c} />}
             </div>
-            <StatusBadge status={agent.status} color={c} active={isActive} />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px 14px', marginTop: 6 }}>
-              <Stat label="MODEL" value={model} />
-              <Stat label="SESSIONS" value={`${agent.activeSessions || 0}/${agent.sessionCount || 0}`} />
-              {isMain && <Stat label="REASONING" value={agent.reasoningLevel || 'off'} />}
-              {crons.length > 0 && <Stat label="CRONS" value={`${crons.length}`} />}
-              {(connections ?? 0) > 0 && <Stat label="LINKS" value={`${connections}`} />}
-            </div>
-            {agent.contextTokens && agent.contextTokens > 0 && <CtxBar tokens={agent.contextTokens} color={c} />}
-          </div>
-        </Html>
+          </Html>
+        )}
 
         {/* Detail panel */}
-        {selected && (
-          <Html position={[size + 3.5, 0, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+        {showDetail && (
+          <Html position={[size + 3.5, 0, 0]} zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
             <div style={{
               background: '#08080cf0', border: `1px solid ${c}22`, borderRadius: 6,
               padding: '10px 14px', width: 230, boxShadow: `0 0 30px ${c}10`,
               fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              opacity: selected ? 1 : 0.92,
             }}>
               <div style={{ fontSize: 9, color: c, fontWeight: 700, letterSpacing: '0.1em', borderBottom: `1px solid ${c}15`, paddingBottom: 5, marginBottom: 6 }}>
                 {isMain ? '● CORE AGENT' : `● ${agent.label.toUpperCase()}`}
@@ -453,11 +649,12 @@ function Moon({ cron, index, total, planetSize }: {
 }) {
   const ref = useRef<THREE.Group>(null)
   const shellRef = useRef<THREE.Mesh>(null)
+  const haloRef = useRef<THREE.Mesh>(null)
   const moonR = planetSize + 2.0 + index * 1.0
   const speed = 0.3 / (1 + index * 0.15)
   const base = (index / Math.max(total, 1)) * Math.PI * 2
   const isRunning = cron.status === 'running'
-  const mc = isRunning ? '#60a5fa' : '#2a3a2a'
+  const mc = isRunning ? '#7cc0ff' : '#5d7488'
   const tilt = 0.15 + index * 0.1
 
   useFrame(({ clock }) => {
@@ -469,6 +666,10 @@ function Moon({ cron, index, total, planetSize }: {
       Math.sin(a) * moonR
     )
     if (shellRef.current) shellRef.current.rotation.y = clock.elapsedTime * 0.1
+    if (haloRef.current) {
+      const s = 1 + Math.sin(clock.elapsedTime * 2.2 + index) * 0.06
+      haloRef.current.scale.set(s, s, s)
+    }
   })
 
   // Moon orbit ring (relative to parent planet)
@@ -484,29 +685,29 @@ function Moon({ cron, index, total, planetSize }: {
   return (
     <group>
       {/* Moon orbit path */}
-      <Line points={orbitPts} color={mc} lineWidth={0.5} transparent opacity={isRunning ? 0.15 : 0.05} dashed dashSize={0.3} gapSize={0.2} />
+      <Line points={orbitPts} color={mc} lineWidth={0.6} transparent opacity={isRunning ? 0.22 : 0.09} dashed dashSize={0.3} gapSize={0.2} />
 
       <group ref={ref}>
+        <MoonBodyModel diameter={0.58} color={mc} active={isRunning} />
         {/* Wireframe shell */}
         <mesh ref={shellRef}>
-          <icosahedronGeometry args={[0.28, 1]} />
-          <meshBasicMaterial color={mc} wireframe transparent opacity={isRunning ? 0.55 : 0.2} />
+          <icosahedronGeometry args={[0.31, 1]} />
+          <meshBasicMaterial color={mc} wireframe transparent opacity={isRunning ? 0.72 : 0.28} />
         </mesh>
-        {/* Inner glow */}
-        <Sphere args={[0.14, 8, 8]}>
-          <meshBasicMaterial color={mc} transparent opacity={isRunning ? 0.7 : 0.15} />
+        {/* Orbiting ring */}
+        <mesh rotation={[Math.PI * 0.52 + index * 0.06, 0, 0]}>
+          <torusGeometry args={[0.28, 0.01, 6, 50]} />
+          <meshBasicMaterial color={mc} transparent opacity={isRunning ? 0.35 : 0.12} />
+        </mesh>
+        <Sphere ref={haloRef} args={[0.42, 10, 10]}>
+          <meshBasicMaterial color={mc} transparent opacity={isRunning ? 0.09 : 0.03} side={THREE.BackSide} />
         </Sphere>
-        {/* Tiny atmosphere */}
-        {isRunning && (
-          <Sphere args={[0.38, 8, 8]}>
-            <meshBasicMaterial color={mc} transparent opacity={0.04} side={THREE.BackSide} />
-          </Sphere>
-        )}
+        <pointLight intensity={isRunning ? 0.22 : 0.08} color={mc} distance={3.4} decay={2} />
         {/* Label */}
-        <Html position={[0, 0.45, 0]} center style={{ pointerEvents: 'none', userSelect: 'none' }}>
+        <Html position={[0, 0.52, 0]} center zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
           <div style={{
             background: '#06060ae0', borderRadius: 3, padding: '1px 5px',
-            fontSize: 7, color: isRunning ? '#88bbff' : '#555', whiteSpace: 'nowrap',
+            fontSize: 7, color: isRunning ? '#b6d9ff' : '#7d8ea2', whiteSpace: 'nowrap',
             fontFamily: "'JetBrains Mono', monospace",
             maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis',
           }}>
@@ -575,7 +776,7 @@ function Comet({ task, index }: { task: Task; index: number }) {
         </>
       )}
       {/* Label */}
-      <Html position={[0, 0.45, 0]} center style={{ pointerEvents: 'none', userSelect: 'none' }}>
+      <Html position={[0, 0.45, 0]} center zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
         <div style={{
           background: '#06060ae0', borderRadius: 3, padding: '1px 6px',
           fontSize: 8, color: isRunning ? '#88bbff' : '#444',
@@ -650,7 +851,7 @@ function SketchConnection({ from, to, color, active, label }: {
         </>
       )}
       {active && label && (
-        <Html position={mid} center style={{ pointerEvents: 'none', userSelect: 'none' }}>
+        <Html position={mid} center zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
           <div style={{
             background: '#060609dd', borderRadius: 3, padding: '1px 6px',
             fontSize: 7, color: `${color}aa`, fontFamily: "'JetBrains Mono', monospace",
@@ -699,34 +900,67 @@ function CameraController({ target, distance, enabled }: {
   target: [number, number, number] | null; distance: number; enabled: boolean
 }) {
   const controlsRef = useRef<any>(null)
+  const interactingRef = useRef(false)
   const targetVec = useRef(new THREE.Vector3(0, 0, 0))
   const posVec = useRef(new THREE.Vector3(0, 16, 30))
+  const wasEnabledRef = useRef(false)
 
   useFrame(({ camera }) => {
-    if (!target || !controlsRef.current) return
+    if (!controlsRef.current) return
+    const controls = controlsRef.current
 
-    // Lerp target
-    targetVec.current.lerp(new THREE.Vector3(...target), 0.04)
-    controlsRef.current.target.copy(targetVec.current)
+    if (enabled && target) {
+      if (!wasEnabledRef.current) {
+        posVec.current.copy(camera.position)
+      }
+      targetVec.current.lerp(new THREE.Vector3(...target), 0.05)
+      controls.target.copy(targetVec.current)
 
-    // Lerp camera position to orbit around target
-    const desired = new THREE.Vector3(
-      target[0] + distance * 0.3,
-      target[1] + distance * 0.6,
-      target[2] + distance * 0.8,
-    )
-    posVec.current.lerp(desired, 0.04)
-    camera.position.copy(posVec.current)
+      if (!interactingRef.current) {
+        const desired = new THREE.Vector3(
+          target[0] + distance * 0.3,
+          target[1] + distance * 0.6,
+          target[2] + distance * 0.8,
+        )
+        posVec.current.lerp(desired, 0.045)
+        camera.position.copy(posVec.current)
+      }
+    }
 
-    controlsRef.current.update()
+    if (!enabled && !interactingRef.current) {
+      targetVec.current.lerp(new THREE.Vector3(0, 0, 0), 0.02)
+      controls.target.lerp(targetVec.current, 0.02)
+    }
+
+    controls.autoRotate = !enabled && !interactingRef.current
+    controls.update()
+    wasEnabledRef.current = enabled
   })
 
   return (
     <OrbitControls ref={controlsRef} makeDefault
-      minDistance={enabled ? 3 : 6} maxDistance={enabled ? 12 : 70}
-      minPolarAngle={0.15} maxPolarAngle={Math.PI - 0.15}
-      autoRotate={!enabled} autoRotateSpeed={enabled ? 0.2 : 0.08}
-      enableDamping dampingFactor={0.04} />
+      minDistance={enabled ? 3 : 6} maxDistance={enabled ? 13 : 80}
+      minPolarAngle={0.15} maxPolarAngle={Math.PI - 0.12}
+      autoRotate={!enabled}
+      autoRotateSpeed={enabled ? 0.16 : 0.1}
+      enableDamping
+      dampingFactor={0.05}
+      enablePan
+      panSpeed={0.7}
+      rotateSpeed={0.7}
+      zoomSpeed={0.85}
+      mouseButtons={{
+        LEFT: THREE.MOUSE.ROTATE,
+        MIDDLE: THREE.MOUSE.DOLLY,
+        RIGHT: THREE.MOUSE.PAN,
+      }}
+      touches={{
+        ONE: THREE.TOUCH.ROTATE,
+        TWO: THREE.TOUCH.DOLLY_PAN,
+      }}
+      onStart={() => { interactingRef.current = true }}
+      onEnd={() => { interactingRef.current = false }}
+    />
   )
 }
 
@@ -784,7 +1018,7 @@ function FlowPortal({
         <meshBasicMaterial color={meta.color} transparent opacity={glow} side={THREE.BackSide} />
       </mesh>
       <Line points={[[0, -0.9, 0], [0, -2.4, 0]]} color={meta.color} lineWidth={0.7} transparent opacity={0.14} />
-      <Html position={[0, -2.7, 0]} center style={{ pointerEvents: 'none', userSelect: 'none' }}>
+      <Html position={[0, -2.7, 0]} center zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
         <div
           style={{
             border: `1px solid ${meta.color}28`,
@@ -916,7 +1150,7 @@ function DetailPanels({ detail, size, color }: {
               <planeGeometry args={[0.1, 0.1]} />
               <meshBasicMaterial transparent opacity={0} />
             </mesh>
-            <Html center style={{ pointerEvents: 'auto', userSelect: 'text' }}
+            <Html center zIndexRange={DETAIL_HTML_Z} style={{ pointerEvents: 'auto', userSelect: 'text' }}
               rotation={[0, -a + Math.PI / 2, 0]}
               position={[0, 1, 0]}>
               <Card3D glowColor={color} className="group">
@@ -1009,12 +1243,16 @@ function Scene({
 
   return (
     <>
-      <color attach="background" args={['#040407']} />
-      <fog attach="fog" args={['#040407', 70, 140]} />
-      <ambientLight intensity={0.03} />
+      <color attach="background" args={['#03060c']} />
+      <fog attach="fog" args={['#05080f', 72, 160]} />
+      <ambientLight intensity={0.14} color="#6e8da7" />
+      <hemisphereLight args={['#88b3dc', '#090f17', 0.32]} />
+      <directionalLight position={[20, 28, 16]} intensity={0.35} color="#adcfff" />
+      <directionalLight position={[-18, 14, -24]} intensity={0.2} color="#65d7b9" />
 
       <SketchGrid />
       <SketchGridLines />
+      <GroundReference />
       <AmbientDust />
 
       {/* Orbit rings */}
@@ -1073,7 +1311,7 @@ function Scene({
           />
           {/* Loading indicator */}
           {loadingDetail && (
-            <Html center position={[0, -focusSize - 1, 0]}>
+            <Html center position={[0, -focusSize - 1, 0]} zIndexRange={SCENE_HTML_Z}>
               <div style={{
                 fontSize: 10, color: '#555', fontFamily: "'JetBrains Mono', monospace",
                 animation: 'pulse-dot 1s infinite',
@@ -1134,10 +1372,15 @@ export function HubScene({
   }, [handleKeyDown])
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div
+      style={{ position: 'relative', width: '100%', height: '100%' }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <Canvas camera={{ position: [0, 16, 30], fov: 48, near: 0.1, far: 300 }}
-        gl={{ antialias: true, alpha: false }} dpr={[1, 1.5]} style={{ background: '#040407' }}>
-        <Scene activeFlow={activeFlow} onFlowChange={onFlowChange} />
+        gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }} dpr={[1, 1.5]} style={{ background: '#03060c', zIndex: 0 }}>
+        <Suspense fallback={null}>
+          <Scene activeFlow={activeFlow} onFlowChange={onFlowChange} />
+        </Suspense>
       </Canvas>
       {/* Back button when focused */}
       {focusedAgent && (
@@ -1163,8 +1406,29 @@ export function HubScene({
         style={{
           position: 'absolute',
           right: 12,
+          top: 12,
+          zIndex: 60,
+          border: '1px solid #50678666',
+          background: '#07101af2',
+          borderRadius: 8,
+          padding: '7px 11px',
+          color: '#c6d2e3',
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: '0.015em',
+          backdropFilter: 'blur(8px)',
+          boxShadow: '0 8px 26px rgba(0,0,0,0.45)',
+        }}
+      >
+        Mouse: drag rotate, right-drag pan, wheel zoom, double-click focus
+      </div>
+      <div
+        style={{
+          position: 'absolute',
+          right: 12,
           bottom: 12,
-          zIndex: 18,
+          zIndex: 50,
           border: `1px solid ${FLOW_META[activeFlow].color}40`,
           background: '#060912cc',
           borderRadius: 8,

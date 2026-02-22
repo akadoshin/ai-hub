@@ -16,11 +16,11 @@ export function SceneOverlay({
   const running = tasks.filter(t => t.status === 'running').length
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-5">
+    <div className="absolute inset-0 pointer-events-none z-30">
       <BackgroundBeams className="opacity-50" />
 
       {/* Top-center: flow quick switch */}
-      <div className="absolute top-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full border border-[#1a1f2a] bg-[#05070bcc] px-2 py-1.5 backdrop-blur-md pointer-events-auto">
+      <div className="absolute top-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full border border-[#26344a] bg-[#040914f2] px-2 py-1.5 backdrop-blur-md pointer-events-auto shadow-[0_8px_30px_rgba(0,0,0,0.45)]">
         {FLOW_ORDER.map((flow) => {
           const meta = FLOW_META[flow]
           const selected = flow === activeFlow
@@ -30,9 +30,9 @@ export function SceneOverlay({
               onClick={() => onFlowChange(flow)}
               className="rounded-full px-2 py-1 text-[9px] font-semibold tracking-wide transition-colors"
               style={{
-                color: selected ? meta.color : '#6f7a8f',
-                border: `1px solid ${selected ? `${meta.color}55` : '#1b2230'}`,
-                background: selected ? `${meta.color}16` : '#090d14',
+                color: selected ? meta.color : '#a0aec0',
+                border: `1px solid ${selected ? `${meta.color}66` : '#2a3548'}`,
+                background: selected ? `${meta.color}20` : '#0a1220',
               }}
               title={`${meta.label} (${meta.shortcut})`}
             >
@@ -43,8 +43,8 @@ export function SceneOverlay({
       </div>
 
       {/* Bottom-left: legend */}
-      <div className="absolute bottom-3.5 left-3.5 flex flex-col gap-1 bg-[#050508]/80 backdrop-blur-md rounded-lg px-2.5 py-2 border border-[#1a1a22]">
-        <div className="text-[8px] text-[#444] font-bold tracking-wider mb-0.5">SYSTEM MAP</div>
+      <div className="absolute bottom-3.5 left-3.5 flex flex-col gap-1 bg-[#040a14ef] backdrop-blur-md rounded-lg px-2.5 py-2 border border-[#24344c] shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
+        <div className="text-[8px] text-[#96a6be] font-bold tracking-wider mb-0.5">SYSTEM MAP</div>
         <Legend emoji="☀" label="Star — core agent" />
         <Legend emoji="🪐" label="Planet — persistent agent" />
         <Legend emoji="🌙" label="Moon — cron task" />
@@ -65,7 +65,7 @@ export function SceneOverlay({
 
 function Legend({ emoji, label }: { emoji: string; label: string }) {
   return (
-    <div className="flex items-center gap-1.5 text-[9px] text-[#555]">
+    <div className="flex items-center gap-1.5 text-[9px] text-[#a0aec0]">
       <span className="text-[10px]">{emoji}</span>
       {label}
     </div>

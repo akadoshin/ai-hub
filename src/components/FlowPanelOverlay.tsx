@@ -36,16 +36,16 @@ function FlowButton({
       onClick={() => onFlowChange(flow)}
       className="group flex items-center gap-2 rounded-xl px-3 py-2 text-left transition-all"
       style={{
-        border: `1px solid ${active ? `${meta.color}66` : '#1a1f2a'}`,
-        background: active ? `${meta.color}18` : '#06080dcc',
-        color: active ? meta.color : '#8a92a3',
+        border: `1px solid ${active ? `${meta.color}70` : '#2a3548'}`,
+        background: active ? `${meta.color}26` : '#08101cf0',
+        color: active ? meta.color : '#b3c0d3',
         boxShadow: active ? `0 0 18px ${meta.color}26` : 'none',
       }}
       title={`${meta.label} (${meta.shortcut})`}
     >
       <span className="shrink-0">{FLOW_ICON[flow]}</span>
       <span className="hidden md:block text-[10px] font-semibold tracking-wide">{meta.shortLabel}</span>
-      <span className="hidden xl:block ml-auto text-[9px] text-[#5e6675] font-mono">{meta.shortcut}</span>
+      <span className="hidden xl:block ml-auto text-[9px] text-[#8aa0be] font-mono">{meta.shortcut}</span>
     </button>
   )
 }
@@ -91,7 +91,7 @@ export function FlowPanelOverlay({ activeFlow, onFlowChange }: Props) {
   const isGraph = activeFlow === 'graph'
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-20">
+    <div className="absolute inset-0 pointer-events-none z-40">
       <div className="absolute left-3 top-[76px] hidden md:flex flex-col gap-2 pointer-events-auto">
         {FLOW_ORDER.map((flow) => (
           <FlowButton
@@ -103,7 +103,7 @@ export function FlowPanelOverlay({ activeFlow, onFlowChange }: Props) {
         ))}
       </div>
 
-      <div className="absolute left-1/2 -translate-x-1/2 bottom-3 md:hidden flex items-center gap-1 rounded-2xl border border-[#1a1f2a] bg-[#06080dcc] backdrop-blur-xl px-2 py-2 pointer-events-auto">
+      <div className="absolute left-1/2 -translate-x-1/2 bottom-3 md:hidden flex items-center gap-1 rounded-2xl border border-[#26344a] bg-[#040914f2] backdrop-blur-xl px-2 py-2 pointer-events-auto shadow-[0_8px_30px_rgba(0,0,0,0.45)]">
         {FLOW_ORDER.map((flow) => (
           <FlowButton
             key={`mobile-${flow}`}
