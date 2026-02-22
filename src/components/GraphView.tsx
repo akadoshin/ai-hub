@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ReactFlow, Background, Controls, MiniMap,
   BackgroundVariant,
@@ -12,23 +12,44 @@ import { GraphDetailPanel } from './GraphDetailPanel'
 
 const nodeTypes = { agentNode: AgentNode }
 const proOptions = { hideAttribution: true }
+const POSITIONS_KEY = 'aihub-graph-positions'
+
+function loadPositions(): Record<string, { x: number; y: number }> {
+  try { return JSON.parse(localStorage.getItem(POSITIONS_KEY) || '{}') } catch { return {} }
+}
+function savePositions(positions: Record<string, { x: number; y: number }>) {
+  localStorage.setItem(POSITIONS_KEY, JSON.stringify(positions))
+}
 
 export function GraphView() {
   const { nodes, edges, setNodesEdges, agents, connections } = useHubStore()
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
+  const positionsRef = useRef(loadPositions())
+
+  // Apply saved positions to nodes
+  const positionedNodes = nodes.map(n => {
+    const saved = positionsRef.current[n.id]
+    return saved ? { ...n, position: saved } : n
+  })
 
   const onNodeClick: NodeMouseHandler = useCallback((_, node) => {
     setSelectedAgentId(prev => prev === node.id ? null : node.id)
   }, [])
 
   const onNodesChange = useCallback((changes: any) => {
-    const next = nodes.map(n => {
+    const next = positionedNodes.map(n => {
       const change = changes.find((c: any) => c.id === n.id && c.type === 'position')
-      if (change?.position) return { ...n, position: change.position }
+      if (change?.position) {
+        positionsRef.current[n.id] = change.position
+        return { ...n, position: change.position }
+      }
       return n
     })
+    // Save after drag
+    const hasDragEnd = changes.some((c: any) => c.type === 'position' && c.dragging === false)
+    if (hasDragEnd) savePositions(positionsRef.current)
     setNodesEdges(next, edges)
-  }, [nodes, edges, setNodesEdges])
+  }, [positionedNodes, edges, setNodesEdges])
 
   const onPaneClick = useCallback(() => {
     setSelectedAgentId(null)
@@ -38,7 +59,7 @@ export function GraphView() {
     <div className="flex-1 relative h-full flex">
       <div className="flex-1 relative">
         <ReactFlow
-          nodes={nodes}
+          nodes={positionedNodes}
           edges={edges}
           nodeTypes={nodeTypes}
           onNodeClick={onNodeClick}
