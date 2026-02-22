@@ -4,7 +4,7 @@ import { OrbitControls, Html, Sphere, Line } from '@react-three/drei'
 import * as THREE from 'three'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useHubStore } from '../store'
-import type { AgentData, Task } from '../store'
+import type { AgentData, AgentDetail, Task } from '../store'
 import { Card3D } from '../ui/3d-card'
 import type { MainView } from '../types/flows'
 import { MAIN_VIEW_META } from '../types/flows'
@@ -31,6 +31,7 @@ const ORBIT_GRAY_ACTIVE = '#848d97'
 const ORBIT_ACCENT = '#727b85'
 const ORBIT_DASH = '#676f79'
 const ORBIT_PLANE_Y = -0.18
+const ENABLE_FOCUS_ORBIT_PANELS = false
 
 function layoutAgents(agents: AgentData[]): Map<string, { pos: [number, number, number]; orbit: number }> {
   const m = new Map<string, { pos: [number, number, number]; orbit: number }>()
@@ -452,9 +453,10 @@ function MoonSurface({ radius, color, active }: {
 }
 
 // ── Planet ──
-function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, crons, connections, runningLoad }: {
+function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, crons, connections, runningLoad, focusMode, isFocused }: {
   agent: AgentData; position: [number, number, number]; orbit: number
   selected: boolean; onClick: () => void; onDoubleClick?: () => void; crons: Task[]; connections?: number; runningLoad?: number
+  focusMode: boolean; isFocused: boolean
 }) {
   const groupRef = useRef<THREE.Group>(null)
   const selRingRef = useRef<THREE.Mesh>(null)
@@ -467,7 +469,8 @@ function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, cron
   const isMain = agent.id === 'main'
   const size = isMain ? 2.8 : 1.5
   const model = agent.model.replace('anthropic/', '').replace('claude-', '')
-  const showDetail = selected || hovered
+  const showDetail = !focusMode && (selected || hovered)
+  const showName = !focusMode || isFocused
   const highlight = selected || hovered
 
   useFrame(({ clock }) => {
@@ -546,38 +549,35 @@ function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, cron
         ))}
 
         {/* Always-visible name tag */}
-        <Html position={[0, size + 1.05, 0]} center zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            background: '#05070cd8', border: `1px solid ${c}24`,
-            borderRadius: 999, padding: '3px 9px',
-            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-          }}>
-            <span style={{
-              width: 5, height: 5, borderRadius: '50%', background: c,
-              boxShadow: isExecuting ? `0 0 8px ${c}` : 'none',
-              opacity: isExecuting ? 1 : 0.75,
-            }} />
-            <span style={{ fontSize: 9, color: '#dbe4f3', fontWeight: 700, letterSpacing: '0.05em' }}>
-              {agent.label}
-            </span>
-          </div>
-        </Html>
+        {showName && (
+          <Html position={[0, size + 1.05, 0]} center zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: '#05070cd8', border: `1px solid ${c}24`,
+              borderRadius: 999, padding: '3px 9px',
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            }}>
+              <span style={{
+                width: 5, height: 5, borderRadius: '50%', background: c,
+                boxShadow: isExecuting ? `0 0 8px ${c}` : 'none',
+                opacity: isExecuting ? 1 : 0.75,
+              }} />
+              <span style={{ fontSize: 9, color: '#dbe4f3', fontWeight: 700, letterSpacing: '0.05em' }}>
+                {agent.label}
+              </span>
+            </div>
+          </Html>
+        )}
 
         {/* Rich hover/selected details */}
         {showDetail && (
           <Html position={[0, size + 1.75, 0]} center zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-            <div style={{
-              textAlign: 'center', background: '#060609ef', backdropFilter: 'blur(12px)',
-              border: `1px solid ${c}36`, borderRadius: 8, padding: '8px 14px',
-              minWidth: isMain ? 220 : 170, fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-              boxShadow: `0 8px 26px ${c}1a`,
-            }}>
-              <div style={{ fontSize: isMain ? 13 : 11, fontWeight: 700, color: '#eee', marginBottom: 4, letterSpacing: '0.04em' }}>
+            <CometCard color={c} width={isMain ? 246 : 208}>
+              <div style={{ fontSize: isMain ? 13 : 11, fontWeight: 700, color: '#f0f5ff', marginBottom: 5, letterSpacing: '0.04em' }}>
                 {agent.label}
               </div>
               <StatusBadge status={agent.status} color={c} active={isExecuting} />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px 14px', marginTop: 6 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px', marginTop: 7 }}>
                 <Stat label="MODEL" value={model} />
                 <Stat label="SESSIONS" value={`${agent.activeSessions || 0}/${agent.sessionCount || 0}`} />
                 <Stat label="RUNNING" value={`${runningLoad || 0}`} />
@@ -588,38 +588,14 @@ function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, cron
               </div>
               {agent.description && (
                 <div style={{
-                  marginTop: 7, fontSize: 8, color: '#8fa1b8',
-                  borderTop: `1px solid ${c}15`, paddingTop: 5,
+                  marginTop: 8, fontSize: 8, color: '#a8b8cf', lineHeight: 1.45,
+                  borderTop: `1px solid ${c}18`, paddingTop: 5,
                 }}>
                   {agent.description}
                 </div>
               )}
               {agent.contextTokens && agent.contextTokens > 0 && <CtxBar tokens={agent.contextTokens} color={c} />}
-            </div>
-          </Html>
-        )}
-
-        {/* Detail panel */}
-        {showDetail && (
-          <Html position={[size + 3.5, 0, 0]} zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-            <div style={{
-              background: '#08080cf0', border: `1px solid ${c}22`, borderRadius: 6,
-              padding: '10px 14px', width: 230, boxShadow: `0 0 30px ${c}10`,
-              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-              opacity: selected ? 1 : 0.92,
-            }}>
-              <div style={{ fontSize: 9, color: c, fontWeight: 700, letterSpacing: '0.1em', borderBottom: `1px solid ${c}15`, paddingBottom: 5, marginBottom: 6 }}>
-                {isMain ? '● CORE AGENT' : `● ${agent.label.toUpperCase()}`}
-              </div>
-              <Detail label="Model" value={agent.model} />
-              <Detail label="Session" value={agent.sessionKey || '—'} />
-              <Detail label="Sessions" value={`${agent.activeSessions || 0} active / ${agent.sessionCount || 0} total`} />
-              <Detail label="Messages" value={agent.messageCount > 0 ? `~${agent.messageCount}` : '—'} />
-              <Detail label="Last active" value={agent.lastActivity} />
-              {agent.contextTokens ? <Detail label="Context" value={`${(agent.contextTokens / 1000).toFixed(0)}k / 200k`} /> : null}
-              <Detail label="Reasoning" value={agent.reasoningLevel || 'off'} />
-              <Detail label="Orbit" value={`${orbit} units`} />
-            </div>
+            </CometCard>
           </Html>
         )}
       </group>
@@ -711,11 +687,7 @@ function Moon({ cron, index, total, planetSize }: {
         </Html>
         {hovered && (
           <Html position={[0.92, 0.08, 0]} zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-            <div style={{
-              background: '#070a10ef', border: `1px solid ${mc}35`, borderRadius: 6,
-              padding: '7px 10px', width: 170, boxShadow: `0 8px 24px ${mc}20`,
-              fontFamily: "'JetBrains Mono', monospace",
-            }}>
+            <CometCard color={mc} width={182}>
               <div style={{ fontSize: 9, color: '#e5ecf7', fontWeight: 700, marginBottom: 4 }}>
                 {moonName}
               </div>
@@ -733,7 +705,7 @@ function Moon({ cron, index, total, planetSize }: {
                   {cron.lastMessage.slice(0, 100)}
                 </div>
               )}
-            </div>
+            </CometCard>
           </Html>
         )}
       </group>
@@ -813,11 +785,7 @@ function Comet({ task, index }: { task: Task; index: number }) {
       </Html>
       {hovered && (
         <Html position={[1.15, 0.05, 0]} zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-          <div style={{
-            background: '#070a10ef', border: `1px solid ${c}35`, borderRadius: 6,
-            padding: '7px 10px', width: 176, boxShadow: `0 8px 24px ${c}20`,
-            fontFamily: "'JetBrains Mono', monospace",
-          }}>
+          <CometCard color={c} width={188}>
             <div style={{ fontSize: 9, color: '#e5ecf7', fontWeight: 700, marginBottom: 4 }}>
               {cometName}
             </div>
@@ -835,7 +803,7 @@ function Comet({ task, index }: { task: Task; index: number }) {
                 {task.lastMessage.slice(0, 100)}
               </div>
             )}
-          </div>
+          </CometCard>
         </Html>
       )}
     </group>
@@ -1258,6 +1226,7 @@ function Scene({
   const { agents, tasks, connections, selectedAgent, setSelectedAgent,
     focusedAgent, focusAgent, agentDetail, setAgentDetail, loadingDetail, setLoadingDetail } = useHubStore()
   const layout = useMemo(() => layoutAgents(agents), [agents])
+  const focusMode = !!focusedAgent
 
   const handleClick = useCallback((agent: AgentData) => {
     if (focusedAgent) return // ignore clicks while focused
@@ -1330,7 +1299,7 @@ function Scene({
       })}
 
       {/* Connections */}
-      {connections.map(conn => {
+      {!focusMode && connections.map(conn => {
         const fromPos = layout.get(conn.from)?.pos
         const toPos = layout.get(conn.to)?.pos
         if (!fromPos || !toPos) return null
@@ -1350,6 +1319,8 @@ function Scene({
             crons={cronTasks.filter(t => t.parentAgent === 'main' && !planets.some(p => t.label?.toLowerCase().includes(p.id)))}
             connections={connectionCounts.get(star.id) || 0}
             runningLoad={runningByAgent.get(star.id) || 0}
+            focusMode={focusMode}
+            isFocused={focusedAgent?.id === star.id}
           />
         )
       })()}
@@ -1368,12 +1339,14 @@ function Scene({
             crons={[...moons, ...mainMoons]}
             connections={connectionCounts.get(p.id) || 0}
             runningLoad={runningByAgent.get(p.id) || 0}
+            focusMode={focusMode}
+            isFocused={focusedAgent?.id === p.id}
           />
         )
       })}
 
-      {/* Detail panels when focused */}
-      {focusedAgent && focusPos && (
+      {/* Legacy orbiting detail cards (disabled for readability) */}
+      {ENABLE_FOCUS_ORBIT_PANELS && focusedAgent && focusPos && (
         <group position={focusPos}>
           <DetailPanels
             detail={agentDetail}
@@ -1395,9 +1368,9 @@ function Scene({
       )}
 
       {/* Comets */}
-      {spawnTasks.map((t, i) => <Comet key={t.id} task={t} index={i} />)}
+      {!focusMode && spawnTasks.map((t, i) => <Comet key={t.id} task={t} index={i} />)}
 
-      <FlowConstellation mainView={mainView} onSelect={onMainViewChange} />
+      {!focusMode && <FlowConstellation mainView={mainView} onSelect={onMainViewChange} />}
 
       <CameraController
         target={focusPos || [0, 0, 0]}
@@ -1415,7 +1388,7 @@ export function HubScene({
   mainView: MainView
   onMainViewChange: (v: MainView) => void
 }) {
-  const { focusedAgent, focusAgent } = useHubStore()
+  const { focusedAgent, focusAgent, agentDetail, loadingDetail } = useHubStore()
   const [showControlsHint, setShowControlsHint] = useState(true)
 
   useEffect(() => {
@@ -1474,6 +1447,11 @@ export function HubScene({
           ← ESC — Back to System
         </button>
       )}
+      <FocusedAgentPanel
+        agent={focusedAgent}
+        detail={agentDetail}
+        loading={loadingDetail}
+      />
       <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 12, zIndex: 80, pointerEvents: 'auto' }}>
         <AnimatePresence mode="wait">
           {showControlsHint ? (

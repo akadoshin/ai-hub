@@ -3,6 +3,7 @@ import { X, Boxes, Network, Activity, Cpu, Sparkles } from 'lucide-react'
 import { TasksPanel } from './TasksPanel'
 import { GatewayPanel } from './GatewayPanel'
 import { MeshyPanel } from './MeshyPanel'
+import { GraphView } from './GraphView'
 import type { MainView, PanelView } from '../types/flows'
 import { MAIN_VIEW_META, PANEL_META } from '../types/flows'
 
@@ -132,6 +133,35 @@ export function FlowPanelOverlay({ mainView, onMainViewChange, activePanel, onPa
           )
         })}
       </div>
+
+      {/* ── Graph panel — floating, adapts width when sidepanel is open ── */}
+      <AnimatePresence>
+        {mainView === 'graph' && (
+          <motion.div
+            key="graph-panel"
+            initial={{ opacity: 0, scale: 0.98, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.98, y: 8 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="absolute top-[76px] bottom-3 left-3 md:left-[13%] pointer-events-auto"
+            style={{
+              right: activePanel ? '442px' : '12px',
+              transition: 'right 0.25s ease',
+            }}
+          >
+            <div
+              className="h-full rounded-2xl overflow-hidden backdrop-blur-xl"
+              style={{
+                border: `1px solid ${MAIN_VIEW_META.graph.color}25`,
+                background: 'linear-gradient(165deg, rgba(10,10,16,0.94), rgba(6,6,12,0.94))',
+                boxShadow: '0 14px 70px rgba(0,0,0,0.45)',
+              }}
+            >
+              <GraphView />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Sidepanel ── */}
       <AnimatePresence>

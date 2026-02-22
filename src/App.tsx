@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { TopBar } from './components/TopBar'
 import { SceneOverlay } from './components/SceneOverlay'
 import { HubScene } from './3d/SolarSystem'
-import { GraphView } from './components/GraphView'
 import { initWS } from './ws'
 import { useHubStore } from './store'
 import { FlowPanelOverlay } from './components/FlowPanelOverlay'
@@ -42,12 +41,9 @@ export default function App() {
       <TopBar mainView={mainView} />
 
       <div className="relative flex-1 overflow-hidden">
-        {/* Background views — only one visible at a time */}
-        <div style={{ position: 'absolute', inset: 0, display: mainView === 'deck' ? 'block' : 'none' }}>
+        {/* Background: always 3D deck (graph is rendered as floating panel in overlay) */}
+        <div style={{ position: 'absolute', inset: 0 }}>
           <HubScene mainView={mainView} onMainViewChange={setMainView} />
-        </div>
-        <div style={{ position: 'absolute', inset: 0, display: mainView === 'graph' ? 'block' : 'none' }}>
-          <GraphView />
         </div>
 
         {mainView === 'deck' && (
