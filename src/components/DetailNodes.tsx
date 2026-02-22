@@ -1,11 +1,23 @@
-import { memo, useState, useRef, type MouseEvent } from 'react'
-import { Handle, Position } from '@xyflow/react'
+import { memo, useState, useRef, useEffect, type MouseEvent } from 'react'
+import { Handle, Position, useReactFlow } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FileText, ChevronDown, ChevronRight, Bot, Repeat,
   ArrowUpRight, Link2, FolderOpen, Activity, Clock,
 } from 'lucide-react'
+
+// ── Notify parent to re-layout when a node changes height ──
+const RELAYOUT_EVENT = 'detail-node-relayout'
+function emitRelayout() {
+  window.dispatchEvent(new CustomEvent(RELAYOUT_EVENT))
+}
+export function useOnRelayout(cb: () => void) {
+  useEffect(() => {
+    window.addEventListener(RELAYOUT_EVENT, cb)
+    return () => window.removeEventListener(RELAYOUT_EVENT, cb)
+  }, [cb])
+}
 
 // ── Spotlight wrapper for all detail nodes ──
 function SpotlightNode({ children, color, className = '' }: {
@@ -32,15 +44,26 @@ function SpotlightNode({ children, color, className = '' }: {
   )
 }
 
-// ── File Node — shows a markdown file with expandable content ──
-function FileNodeComponent({ data }: NodeProps) {
+// ── File Node ──
+function FileNodeComponent({ data, id }: NodeProps) {
   const { name, content, color } = data as any
   const [open, setOpen] = useState(false)
   const hasContent = !!content
+  const reactFlow = useReactFlow()
+
+  const toggle = () => {
+    if (!hasContent) return
+    const willOpen = !open
+    setOpen(willOpen)
+    // After render, measure and push siblings down
+    requestAnimationFrame(() => {
+      emitRelayout()
+    })
+  }
 
   return (
     <SpotlightNode color={color || '#888'}>
-      <div className="cursor-pointer" onClick={() => hasContent && setOpen(!open)} style={{ minWidth: 180, maxWidth: 300 }}>
+      <div className="cursor-pointer" onClick={toggle} style={{ minWidth: 200, maxWidth: 320 }}>
         <div className="flex items-center gap-2 px-3 py-2">
           <FileText size={10} style={{ color: color || '#888' }} className="shrink-0" />
           <span className="text-[10px] font-mono text-[#bbb] flex-1 truncate">{name}</span>
@@ -54,28 +77,18 @@ function FileNodeComponent({ data }: NodeProps) {
           )}
           {!hasContent && <span className="text-[8px] text-[#333] font-mono">empty</span>}
         </div>
-        <AnimatePresence>
-          {open && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="overflow-hidden"
-            >
-              <pre className="px-3 pb-2 text-[8px] font-mono text-[#666] leading-relaxed whitespace-pre-wrap max-h-52 overflow-y-auto border-t border-[#1a1a22]"
-                style={{ scrollbarWidth: 'thin', scrollbarColor: '#1a1a22 transparent' }}>
-                {content}
-              </pre>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {open && (
+          <pre className="px-3 pb-2 text-[8px] font-mono text-[#666] leading-relaxed whitespace-pre-wrap max-h-52 overflow-y-auto border-t border-[#1a1a22]"
+            style={{ scrollbarWidth: 'thin', scrollbarColor: '#1a1a22 transparent' }}>
+            {content}
+          </pre>
+        )}
       </div>
     </SpotlightNode>
   )
 }
 
-// ── Sessions Node — shows a list of sessions ──
+// ── Sessions Node ──
 function SessionsNodeComponent({ data }: NodeProps) {
   const { sessions, color } = data as any
   const list = (sessions || []) as any[]
@@ -110,7 +123,7 @@ function SessionsNodeComponent({ data }: NodeProps) {
             )
           })}
           {list.length > 4 && (
-            <button onClick={() => setExpanded(!expanded)}
+            <button onClick={() => { setExpanded(!expanded); requestAnimationFrame(emitRelayout) }}
               className="w-full text-[8px] text-[#555] font-mono py-1 hover:text-[#888] transition-colors border-none bg-transparent cursor-pointer">
               {expanded ? 'Show less' : `+${list.length - 4} more`}
             </button>
@@ -242,21 +255,17 @@ function MemoryNodeComponent({ data }: NodeProps) {
           {list.length === 0 && <div className="text-[9px] text-[#333] font-mono text-center py-2">No memory files</div>}
           {list.map((m: any, i: number) => (
             <div key={m.name} className="rounded bg-[#08080d] overflow-hidden">
-              <button onClick={() => setOpenIdx(openIdx === i ? null : i)}
+              <button onClick={() => { setOpenIdx(openIdx === i ? null : i); requestAnimationFrame(emitRelayout) }}
                 className="w-full flex items-center gap-2 px-2 py-1.5 text-left border-none bg-transparent cursor-pointer hover:bg-[#0c0c14] transition-colors">
                 {openIdx === i ? <ChevronDown size={8} className="text-[#555]" /> : <ChevronRight size={8} className="text-[#555]" />}
                 <span className="text-[9px] font-mono text-[#999]">{m.name}</span>
               </button>
-              <AnimatePresence>
-                {openIdx === i && m.preview && (
-                  <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
-                    <pre className="px-2 pb-2 text-[7px] font-mono text-[#555] leading-relaxed whitespace-pre-wrap max-h-32 overflow-y-auto"
-                      style={{ scrollbarWidth: 'thin' }}>
-                      {m.preview}
-                    </pre>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              {openIdx === i && m.preview && (
+                <pre className="px-2 pb-2 text-[7px] font-mono text-[#555] leading-relaxed whitespace-pre-wrap max-h-32 overflow-y-auto"
+                  style={{ scrollbarWidth: 'thin' }}>
+                  {m.preview}
+                </pre>
+              )}
             </div>
           ))}
         </div>

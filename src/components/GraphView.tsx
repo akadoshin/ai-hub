@@ -8,6 +8,7 @@ import '@xyflow/react/dist/style.css'
 import { useHubStore } from '../store'
 import type { AgentData, Connection } from '../store'
 import AgentNode from './AgentNode'
+import { useOnRelayout } from './DetailNodes'
 import { detailNodeTypes } from './DetailNodes'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowLeft } from 'lucide-react'
@@ -179,6 +180,53 @@ function GraphInner() {
     }))
     setLocalEdges(edges)
   }, [agents, connections, viewState])
+
+  // Re-layout file nodes when one expands/collapses (measure DOM heights)
+  const handleRelayout = useCallback(() => {
+    if (viewState !== 'detail' || !selectedAgent) return
+
+    // Get all file nodes for the selected agent
+    const filePrefix = `${selectedAgent.id}:file:`
+    const fileNodes = localNodes.filter(n => n.id.startsWith(filePrefix))
+    if (fileNodes.length === 0) return
+
+    // Measure actual DOM heights
+    const measurements: { id: string; height: number }[] = []
+    for (const fn of fileNodes) {
+      const el = document.querySelector(`[data-id="${fn.id}"]`) as HTMLElement | null
+      if (el) {
+        measurements.push({ id: fn.id, height: el.getBoundingClientRect().height })
+      }
+    }
+    if (measurements.length === 0) return
+
+    // Sort by current Y position to maintain order
+    const sorted = [...measurements].sort((a, b) => {
+      const na = fileNodes.find(n => n.id === a.id)!
+      const nb = fileNodes.find(n => n.id === b.id)!
+      return na.position.y - nb.position.y
+    })
+
+    // Recalculate Y positions with proper spacing
+    const gap = 12
+    const firstNode = fileNodes.find(n => n.id === sorted[0].id)!
+    let currentY = firstNode.position.y
+
+    const newPositions: Record<string, number> = {}
+    for (const m of sorted) {
+      newPositions[m.id] = currentY
+      currentY += m.height + gap
+    }
+
+    setLocalNodes(prev => prev.map(n => {
+      if (newPositions[n.id] !== undefined) {
+        return { ...n, position: { ...n.position, y: newPositions[n.id] } }
+      }
+      return n
+    }))
+  }, [viewState, selectedAgent, localNodes])
+
+  useOnRelayout(handleRelayout)
 
   // Enter agent detail
   const enterAgent = useCallback((agent: AgentData) => {
