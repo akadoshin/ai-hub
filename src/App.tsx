@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { TopBar } from './components/TopBar'
 import { GraphView } from './components/GraphView'
 import { TasksPanel } from './components/TasksPanel'
+import { GatewayPanel } from './components/GatewayPanel'
 import { SceneOverlay } from './components/SceneOverlay'
 import { HubScene } from './3d/SolarSystem'
 import { initWS } from './ws'
@@ -56,8 +57,11 @@ export default function App() {
 
         {/* Right sidebar */}
         <div className="w-[300px] flex flex-col bg-[#080810] border-l border-[#1a1a22] overflow-hidden shrink-0">
-          <div className="flex-1 overflow-hidden flex flex-col">
+          <div className="h-[52%] min-h-[250px] overflow-hidden flex flex-col">
             <TasksPanel sidebar />
+          </div>
+          <div className="h-[48%] min-h-[260px] overflow-hidden flex flex-col">
+            <GatewayPanel />
           </div>
         </div>
       </div>

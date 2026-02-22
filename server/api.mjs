@@ -527,6 +527,19 @@ app.get('/api/graph', async (req, res) => {
 
 // ── Gateway-powered real-time state ──
 
+function parseBool(v, fallback = false) {
+  if (v == null) return fallback
+  const s = String(v).toLowerCase()
+  if (s === '1' || s === 'true' || s === 'yes' || s === 'on') return true
+  if (s === '0' || s === 'false' || s === 'no' || s === 'off') return false
+  return fallback
+}
+
+async function callGatewaySafe(method, params = {}, timeoutMs = 8000) {
+  if (!isConnected()) throw new Error('gateway not connected')
+  return await callGateway(method, params, timeoutMs)
+}
+
 async function getGatewayState() {
   if (!isConnected()) return null
 
@@ -689,6 +702,193 @@ app.get('/api/status', async (req, res) => {
     totalConnections: connections.length,
     activeConnections: connections.filter(c => c.active).length,
   })
+})
+
+// ── Gateway REST Bridge (for control UI features) ──
+
+app.get('/api/gateway/health', async (req, res) => {
+  try { res.json(await callGatewaySafe('health', { probe: parseBool(req.query.probe, false) }, 10000)) }
+  catch (e) { res.status(503).json({ error: e.message }) }
+})
+
+app.get('/api/gateway/status', async (req, res) => {
+  try { res.json(await callGatewaySafe('status', {}, 8000)) }
+  catch (e) { res.status(503).json({ error: e.message }) }
+})
+
+app.get('/api/gateway/channels', async (req, res) => {
+  try { res.json(await callGatewaySafe('channels.status', {}, 10000)) }
+  catch (e) { res.status(503).json({ error: e.message }) }
+})
+
+app.get('/api/gateway/agents', async (req, res) => {
+  try { res.json(await callGatewaySafe('agents.list', {}, 8000)) }
+  catch (e) { res.status(503).json({ error: e.message }) }
+})
+
+app.get('/api/gateway/sessions', async (req, res) => {
+  try {
+    const params = {}
+    if (req.query.limit) params.limit = Number(req.query.limit)
+    if (req.query.agentId) params.agentId = String(req.query.agentId)
+    if (req.query.activeMinutes) params.activeMinutes = Number(req.query.activeMinutes)
+    if (req.query.search) params.search = String(req.query.search)
+    res.json(await callGatewaySafe('sessions.list', params, 10000))
+  } catch (e) {
+    res.status(503).json({ error: e.message })
+  }
+})
+
+app.get('/api/gateway/models', async (req, res) => {
+  try { res.json(await callGatewaySafe('models.list', {}, 8000)) }
+  catch (e) { res.status(503).json({ error: e.message }) }
+})
+
+app.get('/api/gateway/skills/status', async (req, res) => {
+  try {
+    const params = req.query.agentId ? { agentId: String(req.query.agentId) } : {}
+    res.json(await callGatewaySafe('skills.status', params, 10000))
+  } catch (e) {
+    res.status(503).json({ error: e.message })
+  }
+})
+
+app.post('/api/gateway/skills/install', async (req, res) => {
+  try { res.json(await callGatewaySafe('skills.install', req.body || {}, 20000)) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+app.post('/api/gateway/skills/update', async (req, res) => {
+  try { res.json(await callGatewaySafe('skills.update', req.body || {}, 10000)) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+app.get('/api/gateway/cron', async (req, res) => {
+  try {
+    const params = { includeDisabled: parseBool(req.query.includeDisabled, true) }
+    res.json(await callGatewaySafe('cron.list', params, 10000))
+  } catch (e) {
+    res.status(503).json({ error: e.message })
+  }
+})
+
+app.get('/api/gateway/cron/status', async (req, res) => {
+  try { res.json(await callGatewaySafe('cron.status', {}, 8000)) }
+  catch (e) { res.status(503).json({ error: e.message }) }
+})
+
+app.post('/api/gateway/cron/add', async (req, res) => {
+  try { res.json(await callGatewaySafe('cron.add', req.body || {}, 10000)) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+app.post('/api/gateway/cron/update', async (req, res) => {
+  try { res.json(await callGatewaySafe('cron.update', req.body || {}, 10000)) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+app.post('/api/gateway/cron/remove', async (req, res) => {
+  try { res.json(await callGatewaySafe('cron.remove', req.body || {}, 10000)) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+app.post('/api/gateway/cron/run', async (req, res) => {
+  try { res.json(await callGatewaySafe('cron.run', req.body || {}, 10000)) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+app.post('/api/gateway/cron/runs', async (req, res) => {
+  try { res.json(await callGatewaySafe('cron.runs', req.body || {}, 10000)) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+app.get('/api/gateway/chat/history', async (req, res) => {
+  try {
+    const params = {
+      key: String(req.query.key || req.query.sessionKey || 'agent:main:main'),
+      limit: req.query.limit ? Number(req.query.limit) : 80,
+    }
+    res.json(await callGatewaySafe('chat.history', params, 12000))
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+app.post('/api/gateway/chat/send', async (req, res) => {
+  try { res.json(await callGatewaySafe('chat.send', req.body || {}, 15000)) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+app.post('/api/gateway/chat/abort', async (req, res) => {
+  try { res.json(await callGatewaySafe('chat.abort', req.body || {}, 10000)) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+app.post('/api/gateway/call', async (req, res) => {
+  try {
+    const method = String(req.body?.method || '').trim()
+    if (!method) return res.status(400).json({ error: 'method is required' })
+    const params = (req.body?.params && typeof req.body.params === 'object') ? req.body.params : {}
+    const timeoutMs = Number(req.body?.timeoutMs || 10000)
+    res.json(await callGatewaySafe(method, params, timeoutMs))
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+app.get('/api/gateway/exec/settings', async (req, res) => {
+  try { res.json(await callGatewaySafe('exec.approvals.get', {}, 8000)) }
+  catch (e) { res.status(503).json({ error: e.message }) }
+})
+
+app.post('/api/gateway/exec/request', async (req, res) => {
+  try { res.json(await callGatewaySafe('exec.approval.request', req.body || {}, 10000)) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+app.post('/api/gateway/exec/resolve', async (req, res) => {
+  try { res.json(await callGatewaySafe('exec.approval.resolve', req.body || {}, 10000)) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+app.get('/api/gateway/devices', async (req, res) => {
+  try { res.json(await callGatewaySafe('device.pair.list', {}, 8000)) }
+  catch (e) { res.status(503).json({ error: e.message }) }
+})
+
+app.post('/api/gateway/devices/approve', async (req, res) => {
+  try { res.json(await callGatewaySafe('device.pair.approve', req.body || {}, 10000)) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+app.post('/api/gateway/devices/reject', async (req, res) => {
+  try { res.json(await callGatewaySafe('device.pair.reject', req.body || {}, 10000)) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+app.post('/api/gateway/devices/remove', async (req, res) => {
+  try { res.json(await callGatewaySafe('device.pair.remove', req.body || {}, 10000)) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+app.get('/api/gateway/voicewake', async (req, res) => {
+  try { res.json(await callGatewaySafe('voicewake.get', {}, 8000)) }
+  catch (e) { res.status(503).json({ error: e.message }) }
+})
+
+app.post('/api/gateway/voicewake', async (req, res) => {
+  try { res.json(await callGatewaySafe('voicewake.set', req.body || {}, 8000)) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+app.get('/api/gateway/nodes', async (req, res) => {
+  try { res.json(await callGatewaySafe('node.list', {}, 8000)) }
+  catch (e) { res.status(503).json({ error: e.message }) }
+})
+
+app.post('/api/gateway/nodes/invoke', async (req, res) => {
+  try { res.json(await callGatewaySafe('node.invoke', req.body || {}, 15000)) }
+  catch (e) { res.status(500).json({ error: e.message }) }
 })
 
 // ── SSE ──

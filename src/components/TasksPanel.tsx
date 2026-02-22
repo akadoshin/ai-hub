@@ -323,18 +323,21 @@ export function TasksPanel({ sidebar: _sidebar }: { sidebar?: boolean }) {
   const done = filtered.filter(t => t.status !== 'running')
 
   const handleAction = useCallback((action: string, task: Task) => {
-    // TODO: connect to API when endpoints are added
-    console.log(`[TasksPanel] ${action}:`, task.id, task.label)
+    const store = useHubStore.getState()
     if (action === 'remove') {
-      // Remove from local store for now
-      const store = useHubStore.getState()
-      store.upsertTask({ ...task, status: 'completed' } as Task)
+      store.removeTask(task.id)
+    } else if (action === 'rerun') {
+      fetch('/api/gateway/cron/run', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ cronId: task.key?.split(':cron:')[1]?.split(':')[0] || task.id }),
+      }).catch(() => {})
     }
+    // 'stop' is a future gateway call
   }, [])
 
   const clearCompleted = useCallback(() => {
-    console.log('[TasksPanel] clear completed')
-    // TODO: API call to clear
+    useHubStore.getState().clearCompletedTasks()
   }, [])
 
   return (
@@ -423,23 +426,49 @@ export function TasksPanel({ sidebar: _sidebar }: { sidebar?: boolean }) {
               ))}
             </div>
           )}
-          {done.length > 0 && (
-            <div>
-              <div className="text-[8px] text-[#333] font-bold tracking-[0.15em] uppercase mb-1.5 mt-1 px-1 font-mono">
-                History ({done.length})
-              </div>
-              {done.map(t => (
-                <motion.div key={t.id}
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.2 }}
-                  className="mb-1.5">
-                  <TaskCard task={t} onAction={handleAction} />
-                </motion.div>
-              ))}
-            </div>
-          )}
+          {(() => {
+            const cronsDone = done.filter(t => t.type === 'cron')
+            const spawnsDone = done.filter(t => t.type !== 'cron')
+            return (
+              <>
+                {cronsDone.length > 0 && (
+                  <div>
+                    <div className="text-[8px] text-[#c084fc] font-bold tracking-[0.15em] uppercase mb-1.5 mt-1 px-1 font-mono flex items-center gap-1.5">
+                      <Repeat size={8} className="text-[#c084fc]" />
+                      Crons ({cronsDone.length})
+                    </div>
+                    {cronsDone.map(t => (
+                      <motion.div key={t.id}
+                        initial={{ opacity: 0, y: -6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.2 }}
+                        className="mb-1.5">
+                        <TaskCard task={t} onAction={handleAction} />
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+                {spawnsDone.length > 0 && (
+                  <div>
+                    <div className="text-[8px] text-[#333] font-bold tracking-[0.15em] uppercase mb-1.5 mt-1 px-1 font-mono">
+                      History ({spawnsDone.length})
+                    </div>
+                    {spawnsDone.map(t => (
+                      <motion.div key={t.id}
+                        initial={{ opacity: 0, y: -6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.2 }}
+                        className="mb-1.5">
+                        <TaskCard task={t} onAction={handleAction} />
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )
+          })()}
         </AnimatePresence>
         {filtered.length === 0 && (
           <div className="text-[#333] text-[10px] text-center mt-10 font-mono">

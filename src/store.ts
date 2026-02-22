@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import type { Node, Edge } from '@xyflow/react'
 
 export type AgentStatus = 'active' | 'idle' | 'thinking' | 'error'
 
@@ -34,12 +33,21 @@ export interface Task {
   model: string
   status: 'running' | 'completed' | 'failed'
   type?: 'cron' | 'spawn'
+  kind?: string
   elapsed: number
   startTime: number
   lastMessage: string
   agentId?: string
   parentAgent?: string
   targetAgent?: string
+  // Token data (from gateway)
+  inputTokens?: number
+  outputTokens?: number
+  totalTokens?: number
+  percentUsed?: number
+  contextTokens?: number
+  reasoningLevel?: string
+  flags?: string[]
 }
 
 export interface AgentDetail {
@@ -111,28 +119,28 @@ interface HubState {
   agents: AgentData[]
   tasks: Task[]
   connections: Connection[]
-  nodes: Node[]
-  edges: Edge[]
+  stats: { totalAgents: number; activeSessions: number; messagesTotal: number; activeConnections: number }
+
+  // 3D scene state (used by SolarSystem)
   selectedAgent: AgentData | null
   focusedAgent: AgentData | null
   agentDetail: AgentDetail | null
   loadingDetail: boolean
-  graphData: GraphData | null
-  stats: { totalAgents: number; activeSessions: number; messagesTotal: number; activeConnections: number }
 
   setConnected: (v: boolean) => void
   setFullState: (agents: AgentData[], tasks: Task[], connections: Connection[]) => void
   upsertAgent: (agent: AgentData) => void
   upsertTask: (task: Task) => void
+  removeTask: (id: string) => void
+  clearCompletedTasks: () => void
   setConnections: (c: Connection[]) => void
+  incrementMessages: () => void
+  loadMockData: () => void
+  // 3D scene setters
   setSelectedAgent: (a: AgentData | null) => void
   focusAgent: (a: AgentData | null) => void
   setAgentDetail: (d: AgentDetail | null) => void
   setLoadingDetail: (v: boolean) => void
-  setGraphData: (d: GraphData) => void
-  setNodesEdges: (nodes: Node[], edges: Edge[]) => void
-  incrementMessages: () => void
-  loadMockData: () => void
 }
 
 const MOCK_AGENTS: AgentData[] = [
@@ -150,59 +158,33 @@ const MOCK_CONNECTIONS: Connection[] = [
   { id: 'main→psych', from: 'main', to: 'psych', type: 'hierarchy', active: false, strength: 0.3, label: '', taskCount: 2, runningCount: 0 },
 ]
 
-function buildNodesEdges(agents: AgentData[], connections: Connection[]): { nodes: Node[]; edges: Edge[] } {
-  const cx = 500, cy = 300, r = 220
-  const nodes: Node[] = agents.map((a, i) => {
-    const angle = (i / agents.length) * 2 * Math.PI - Math.PI / 2
-    return {
-      id: a.id,
-      type: 'agentNode',
-      position: { x: cx + r * Math.cos(angle) - 80, y: cy + r * Math.sin(angle) - 40 },
-      data: a,
-    }
-  })
-  const edges: Edge[] = connections.map(c => ({
-    id: c.id,
-    source: c.from,
-    target: c.to,
-    animated: c.active,
-    style: {
-      stroke: c.active ? '#00ff88' : '#333',
-      strokeWidth: c.active ? 2 : 1,
-      opacity: c.active ? 0.8 : 0.3,
-    },
-    label: c.label || undefined,
-  }))
-  return { nodes, edges }
-}
-
 export const useHubStore = create<HubState>((set, get) => ({
   connected: false,
   agents: [],
   tasks: [],
   connections: [],
-  nodes: [],
-  edges: [],
+  stats: { totalAgents: 0, activeSessions: 0, messagesTotal: 0, activeConnections: 0 },
+
+  // 3D scene state
   selectedAgent: null,
   focusedAgent: null,
   agentDetail: null,
   loadingDetail: false,
-  graphData: null,
-  stats: { totalAgents: 0, activeSessions: 0, messagesTotal: 0, activeConnections: 0 },
 
   setConnected: (v) => set({ connected: v }),
+  setSelectedAgent: (a) => set({ selectedAgent: a }),
+  focusAgent: (a) => set({ focusedAgent: a, agentDetail: null }),
+  setAgentDetail: (d) => set({ agentDetail: d }),
+  setLoadingDetail: (v) => set({ loadingDetail: v }),
 
   setFullState: (agents, tasks, connections) => {
     const sorted = [...agents].sort((a, b) => (a.id === 'main' ? -1 : b.id === 'main' ? 1 : 0))
-    const { nodes, edges } = buildNodesEdges(sorted, connections)
     const activeSessions = sorted.filter(a => a.status === 'active' || a.status === 'thinking').length
     const activeConnections = connections.filter(c => c.active).length
     set({
       agents: sorted,
       tasks,
       connections,
-      nodes,
-      edges,
       stats: {
         totalAgents: sorted.length,
         activeSessions,
@@ -215,9 +197,8 @@ export const useHubStore = create<HubState>((set, get) => ({
   upsertAgent: (agent) => {
     const agents = [...get().agents.filter(a => a.id !== agent.id), agent]
     const sorted = agents.sort((a, b) => (a.id === 'main' ? -1 : b.id === 'main' ? 1 : 0))
-    const { nodes, edges } = buildNodesEdges(sorted, get().connections)
     const activeSessions = sorted.filter(a => a.status === 'active' || a.status === 'thinking').length
-    set({ agents: sorted, nodes, edges, stats: { ...get().stats, totalAgents: sorted.length, activeSessions } })
+    set({ agents: sorted, stats: { ...get().stats, totalAgents: sorted.length, activeSessions } })
   },
 
   upsertTask: (task) => {
@@ -225,17 +206,18 @@ export const useHubStore = create<HubState>((set, get) => ({
     set({ tasks: tasks.slice(0, 50) })
   },
 
-  setConnections: (connections) => {
-    const { nodes, edges } = buildNodesEdges(get().agents, connections)
-    set({ connections, nodes, edges, stats: { ...get().stats, activeConnections: connections.filter(c => c.active).length } })
+  removeTask: (id) => {
+    set({ tasks: get().tasks.filter(t => t.id !== id) })
   },
 
-  setSelectedAgent: (a) => set({ selectedAgent: a }),
-  focusAgent: (a) => set({ focusedAgent: a, agentDetail: null }),
-  setAgentDetail: (d) => set({ agentDetail: d }),
-  setLoadingDetail: (v) => set({ loadingDetail: v }),
-  setGraphData: (d) => set({ graphData: d }),
-  setNodesEdges: (nodes, edges) => set({ nodes, edges }),
+  clearCompletedTasks: () => {
+    set({ tasks: get().tasks.filter(t => t.status === 'running') })
+  },
+
+  setConnections: (connections) => {
+    set({ connections, stats: { ...get().stats, activeConnections: connections.filter(c => c.active).length } })
+  },
+
   incrementMessages: () => set(s => ({ stats: { ...s.stats, messagesTotal: s.stats.messagesTotal + 1 } })),
 
   loadMockData: () => {
