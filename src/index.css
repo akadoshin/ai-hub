@@ -53,3 +53,12 @@ body {
 
 /* Monospace for data */
 .font-mono { font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace; }
+
+@keyframes cometRight {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+@keyframes cometLeft {
+  0% { transform: translateX(350%); }
+  100% { transform: translateX(-100%); }
+}

@@ -38,9 +38,23 @@ function AgentNode({ data, selected }: NodeProps) {
         minWidth: 220,
       }}
     >
-      {/* Spotlight */}
+      {/* Spotlight glow following cursor */}
       <div className="pointer-events-none absolute -inset-px transition-opacity duration-300"
         style={{ opacity: hovered ? 1 : 0, background: `radial-gradient(200px circle at ${spotPos.x}px ${spotPos.y}px, ${cfg.color}10, transparent 60%)` }} />
+
+      {/* Comet trails for active agents */}
+      {isActive && (
+        <>
+          <div className="absolute top-0 left-0 right-0 h-px overflow-hidden">
+            <div className="h-full animate-[cometRight_3s_linear_infinite]"
+              style={{ background: `linear-gradient(90deg, transparent 0%, ${cfg.color}40 40%, ${cfg.color} 50%, ${cfg.color}40 60%, transparent 100%)`, width: '40%' }} />
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 h-px overflow-hidden">
+            <div className="h-full animate-[cometLeft_4s_linear_infinite_0.5s]"
+              style={{ background: `linear-gradient(90deg, transparent 0%, ${cfg.color}30 40%, ${cfg.color}80 50%, ${cfg.color}30 60%, transparent 100%)`, width: '30%' }} />
+          </div>
+        </>
+      )}
 
       <Handle type="target" position={Position.Top} style={{ background: '#2a2a33', border: 'none', width: 6, height: 6 }} />
       <Handle type="target" position={Position.Left} id="left" style={{ background: '#2a2a33', border: 'none', width: 6, height: 6 }} />
