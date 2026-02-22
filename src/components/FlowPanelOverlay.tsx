@@ -40,7 +40,7 @@ export function FlowPanelOverlay({ mainView, onMainViewChange, activePanel, onPa
   return (
     <div className="absolute inset-0 pointer-events-none z-40">
       {/* ── Left Dock ── */}
-      <div className="absolute left-3 top-[76px] hidden md:flex flex-col gap-1.5 pointer-events-auto">
+      <div className="absolute left-3 top-[68px] hidden md:flex flex-col gap-3 pointer-events-auto">
         {/* Main view radio buttons */}
         {MAIN_VIEWS.map((v) => {
           const meta = MAIN_VIEW_META[v]
@@ -143,9 +143,9 @@ export function FlowPanelOverlay({ mainView, onMainViewChange, activePanel, onPa
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98, y: 8 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="absolute top-[76px] bottom-3 left-3 md:left-[13%] pointer-events-auto"
+            className="absolute top-[68px] bottom-3 left-3 md:left-[128px] pointer-events-auto"
             style={{
-              right: activePanel ? '450px' : '12px',
+              right: activePanel ? '454px' : '12px',
               transition: 'right 0.25s ease',
             }}
           >
@@ -188,7 +188,7 @@ export function FlowPanelOverlay({ mainView, onMainViewChange, activePanel, onPa
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.98 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="absolute top-[76px] bottom-3 right-3 w-[min(96vw,430px)] pointer-events-auto"
+            className="absolute top-[68px] bottom-3 right-3 w-[min(96vw,430px)] pointer-events-auto"
           >
             <div
               className="h-full rounded-2xl overflow-hidden backdrop-blur-xl"
