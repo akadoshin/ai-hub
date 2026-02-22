@@ -26,6 +26,7 @@ function savePositions(pos: Record<string, { x: number; y: number }>) {
 // ── Detail layout: organized grid ──
 function buildDetailNodes(
   agent: AgentData,
+  agentPos: { x: number; y: number },
   detail: any,
   agentConnections: Connection[],
   color: string,
@@ -34,32 +35,33 @@ function buildDetailNodes(
   const edges: Edge[] = []
   const pid = agent.id
 
-  // Agent "header" node pinned top-left
+  // The agent node itself stays — same id, same type, just at its original position
   nodes.push({
-    id: `${pid}:header`,
-    type: 'statsNode',
-    position: { x: 0, y: 0 },
-    data: { agent, color },
+    id: pid,
+    type: 'agentNode',
+    position: agentPos,
+    data: agent,
   })
 
-  // Right column: content nodes stacked vertically
-  let y = 0
-  const colX = 300
+  // Detail nodes fan out to the right of the agent node
+  let y = agentPos.y - 100
+  const colX = agentPos.x + 320
 
   // Files — individual file nodes
   if (detail?.files) {
     const fileEntries = Object.entries(detail.files).filter(([, v]) => v !== null)
     for (const [key, content] of fileEntries) {
+      const nid = `${pid}:file:${key}`
       nodes.push({
-        id: `${pid}:file:${key}`,
+        id: nid,
         type: 'fileNode',
         position: { x: colX, y },
         data: { name: `${key.toUpperCase()}.md`, content, color },
       })
       edges.push({
-        id: `e:${pid}:header→${pid}:file:${key}`,
-        source: `${pid}:header`,
-        target: `${pid}:file:${key}`,
+        id: `e:${pid}→${nid}`,
+        source: pid,
+        target: nid,
         style: { stroke: color + '15', strokeWidth: 1, strokeDasharray: '4 4' },
       })
       y += 55
@@ -67,69 +69,73 @@ function buildDetailNodes(
   }
 
   // Second column
-  let y2 = 0
-  const col2X = 620
+  let y2 = agentPos.y - 100
+  const col2X = agentPos.x + 640
 
   // Sessions
+  const sessId = `${pid}:sessions`
   nodes.push({
-    id: `${pid}:sessions`,
+    id: sessId,
     type: 'sessionsNode',
     position: { x: col2X, y: y2 },
     data: { sessions: detail?.sessions || [], color: '#60a5fa' },
   })
   edges.push({
-    id: `e:${pid}:header→${pid}:sessions`,
-    source: `${pid}:header`,
-    target: `${pid}:sessions`,
+    id: `e:${pid}→${sessId}`,
+    source: pid,
+    target: sessId,
     style: { stroke: '#60a5fa15', strokeWidth: 1 },
   })
   y2 += 280
 
   // Connections
+  const connId = `${pid}:connections`
   nodes.push({
-    id: `${pid}:connections`,
+    id: connId,
     type: 'connectionsNode',
     position: { x: col2X, y: y2 },
     data: { connections: agentConnections, color: '#00ff88' },
   })
   edges.push({
-    id: `e:${pid}:header→${pid}:connections`,
-    source: `${pid}:header`,
-    target: `${pid}:connections`,
+    id: `e:${pid}→${connId}`,
+    source: pid,
+    target: connId,
     style: { stroke: '#00ff8815', strokeWidth: 1 },
   })
   y2 += 180
 
   // Third column
-  let y3 = 0
-  const col3X = 940
+  let y3 = agentPos.y - 100
+  const col3X = agentPos.x + 960
 
   // Memory
+  const memId = `${pid}:memory`
   nodes.push({
-    id: `${pid}:memory`,
+    id: memId,
     type: 'memoryNode',
     position: { x: col3X, y: y3 },
     data: { memories: detail?.recentMemories || [], color: '#c084fc' },
   })
   edges.push({
-    id: `e:${pid}:header→${pid}:memory`,
-    source: `${pid}:header`,
-    target: `${pid}:memory`,
+    id: `e:${pid}→${memId}`,
+    source: pid,
+    target: memId,
     style: { stroke: '#c084fc15', strokeWidth: 1 },
   })
   y3 += 280
 
   // Workspace
+  const wsId = `${pid}:workspace`
   nodes.push({
-    id: `${pid}:workspace`,
+    id: wsId,
     type: 'workspaceNode',
     position: { x: col3X, y: y3 },
     data: { files: detail?.workspaceFiles || [], color: '#f59e0b' },
   })
   edges.push({
-    id: `e:${pid}:header→${pid}:workspace`,
-    source: `${pid}:header`,
-    target: `${pid}:workspace`,
+    id: `e:${pid}→${wsId}`,
+    source: pid,
+    target: wsId,
     style: { stroke: '#f59e0b15', strokeWidth: 1 },
   })
 
@@ -188,41 +194,50 @@ function GraphInner() {
 
   // Enter agent detail
   const enterAgent = useCallback((agent: AgentData) => {
+    // Remember the agent node's current position
+    const agentNode = localNodes.find(n => n.id === agent.id)
+    const agentPos = agentNode?.position || { x: 0, y: 0 }
+
     setSelectedAgent(agent)
     setViewState('transitioning')
 
-    // Fetch detail
     fetch(`/api/agents/${agent.id}/detail`)
       .then(r => r.json())
       .then(detail => {
         setAgentDetail(detail)
         const color = getAgentColor(agent)
         const agentConns = connections.filter(c => c.from === agent.id || c.to === agent.id)
-        const { nodes, edges } = buildDetailNodes(agent, detail, agentConns, color)
+        const { nodes, edges } = buildDetailNodes(agent, agentPos, detail, agentConns, color)
         setLocalNodes(nodes)
         setLocalEdges(edges)
         setViewState('detail')
 
-        // Fit to the new layout after a tick
         setTimeout(() => {
-          reactFlow.fitView({ padding: 0.15, duration: 400 })
+          reactFlow.fitView({ padding: 0.12, duration: 500 })
         }, 50)
       })
       .catch(() => {
         setViewState('agents')
         setSelectedAgent(null)
       })
-  }, [connections, reactFlow])
+  }, [connections, reactFlow, localNodes])
 
   // Exit back to agents
   const exitAgent = useCallback(() => {
+    // Grab the agent node's current position before we clear detail nodes
+    const agentId = selectedAgent?.id
+    const currentAgentNode = agentId ? localNodes.find(n => n.id === agentId) : null
+    if (currentAgentNode && agentId) {
+      savedPos.current[agentId] = currentAgentNode.position
+      savePositions(savedPos.current)
+    }
+
     setViewState('transitioning')
     setSelectedAgent(null)
     setAgentDetail(null)
 
     const { nodes, edges } = buildAgentGraph()
-    setLocalNodes(prev => nodes.map(n => {
-      // Restore saved positions
+    setLocalNodes(nodes.map(n => {
       if (savedPos.current[n.id]) return { ...n, position: savedPos.current[n.id] }
       return n
     }))
@@ -230,9 +245,9 @@ function GraphInner() {
     setViewState('agents')
 
     setTimeout(() => {
-      reactFlow.fitView({ padding: 0.3, duration: 400 })
+      reactFlow.fitView({ padding: 0.3, duration: 500 })
     }, 50)
-  }, [buildAgentGraph, reactFlow])
+  }, [buildAgentGraph, reactFlow, selectedAgent, localNodes])
 
   const onNodeClick: NodeMouseHandler = useCallback((_, node) => {
     if (viewState === 'agents' && node.type === 'agentNode') {
