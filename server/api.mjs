@@ -100,19 +100,25 @@ async function getSessions() {
       if (!data || typeof data !== 'object') continue
 
       for (const [key, session] of Object.entries(data)) {
-        // Skip main sessions (they're shown as agents)
         if (key.endsWith(':main')) continue
+
+        // Determine type: cron or spawn
+        const isCron = key.includes(':cron:')
+        const type = isCron ? 'cron' : 'spawn'
 
         sessions.push({
           id: session.sessionId || key,
+          key,
           label: session.label || key.split(':').pop() || key,
           model: session.model || 'unknown',
           status: getSessionStatus(session),
+          type,
           startTime: session.createdAt || session.updatedAt || 0,
           lastActivityMs: session.updatedAt || 0,
           elapsed: session.updatedAt ? Math.floor((Date.now() - session.updatedAt) / 1000) : 0,
           lastMessage: session.label || '',
           agentId: agentId,
+          parentAgent: agentId,
         })
       }
     }

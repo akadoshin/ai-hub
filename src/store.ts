@@ -21,13 +21,16 @@ export interface AgentData extends Record<string, unknown> {
 
 export interface Task {
   id: string
+  key?: string
   label: string
   model: string
   status: 'running' | 'completed' | 'failed'
+  type?: 'cron' | 'spawn'
   elapsed: number
   startTime: number
   lastMessage: string
   agentId?: string
+  parentAgent?: string
 }
 
 interface HubState {
