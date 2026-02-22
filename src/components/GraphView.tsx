@@ -133,6 +133,71 @@ function buildDetailNodes(
   return { nodes, edges }
 }
 
+// ── Overlap resolution: push nodes apart so nothing overlaps ──
+function resolveOverlaps(nodes: Node[], zoom: number, passes = 3): Node[] {
+  let result = [...nodes]
+  const PAD_X = 20
+  const PAD_Y = 10
+
+  for (let pass = 0; pass < passes; pass++) {
+    let moved = false
+    for (let i = 0; i < result.length; i++) {
+      const a = result[i]
+      const elA = document.querySelector(`[data-id="${a.id}"]`) as HTMLElement | null
+      if (!elA) continue
+      const wA = elA.getBoundingClientRect().width / zoom
+      const hA = elA.getBoundingClientRect().height / zoom
+
+      for (let j = i + 1; j < result.length; j++) {
+        const b = result[j]
+        const elB = document.querySelector(`[data-id="${b.id}"]`) as HTMLElement | null
+        if (!elB) continue
+        const wB = elB.getBoundingClientRect().width / zoom
+        const hB = elB.getBoundingClientRect().height / zoom
+
+        // Check overlap
+        const overlapX = (a.position.x + wA + PAD_X) - b.position.x
+        const overlapY = (a.position.y + hA + PAD_Y) - b.position.y
+        const overlapXrev = (b.position.x + wB + PAD_X) - a.position.x
+        const overlapYrev = (b.position.y + hB + PAD_Y) - a.position.y
+
+        const isOverlapping =
+          a.position.x < b.position.x + wB + PAD_X &&
+          a.position.x + wA + PAD_X > b.position.x &&
+          a.position.y < b.position.y + hB + PAD_Y &&
+          a.position.y + hA + PAD_Y > b.position.y
+
+        if (!isOverlapping) continue
+        moved = true
+
+        // Push the node that's further right/down
+        // Determine which axis has less overlap to resolve
+        const pushRight = Math.min(overlapX, overlapXrev)
+        const pushDown = Math.min(overlapY, overlapYrev)
+
+        if (pushDown < pushRight) {
+          // Push vertically
+          if (a.position.y < b.position.y) {
+            result[j] = { ...b, position: { ...b.position, y: a.position.y + hA + PAD_Y } }
+          } else {
+            result[i] = { ...a, position: { ...a.position, y: b.position.y + hB + PAD_Y } }
+          }
+        } else {
+          // Push horizontally
+          if (a.position.x < b.position.x) {
+            result[j] = { ...b, position: { ...b.position, x: a.position.x + wA + PAD_X } }
+          } else {
+            result[i] = { ...a, position: { ...a.position, x: b.position.x + wB + PAD_X } }
+          }
+        }
+      }
+    }
+    if (!moved) break
+  }
+
+  return result
+}
+
 type ViewState = 'agents' | 'transitioning' | 'detail'
 
 function GraphInner() {
@@ -259,7 +324,8 @@ function GraphInner() {
         }
       }
 
-      return next
+      // Final pass: resolve any remaining overlaps
+      return resolveOverlaps(next, reactFlow.getZoom())
     })
   }, [viewState, selectedAgent, reactFlow])
 
@@ -334,8 +400,10 @@ function GraphInner() {
   }, [viewState, agents, enterAgent])
 
   const onNodesChange = useCallback((changes: any) => {
+    const hasDragEnd = changes.some((c: any) => c.type === 'position' && c.dragging === false)
+
     setLocalNodes(prev => {
-      const next = prev.map(n => {
+      let next = prev.map(n => {
         const change = changes.find((c: any) => c.id === n.id && c.type === 'position')
         if (change?.position) {
           if (viewState === 'agents' && !n.id.includes(':')) savedPos.current[n.id] = change.position
@@ -343,12 +411,16 @@ function GraphInner() {
         }
         return n
       })
-      if (viewState === 'agents' && changes.some((c: any) => c.type === 'position' && c.dragging === false)) {
-        savePositions(savedPos.current)
+
+      // On drag end: resolve overlaps
+      if (hasDragEnd) {
+        next = resolveOverlaps(next, reactFlow.getZoom())
+        if (viewState === 'agents') savePositions(savedPos.current)
       }
+
       return next
     })
-  }, [viewState])
+  }, [viewState, reactFlow])
 
   // ESC to go back
   useEffect(() => {
