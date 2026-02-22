@@ -404,16 +404,28 @@ function GraphInner() {
 
     setLocalNodes(prev => {
       let next = prev.map(n => {
-        const change = changes.find((c: any) => c.id === n.id && c.type === 'position')
-        if (change?.position) {
-          if (viewState === 'agents' && !n.id.includes(':')) savedPos.current[n.id] = change.position
-          return { ...n, position: change.position }
+        // Handle position changes (drag)
+        const posChange = changes.find((c: any) => c.id === n.id && c.type === 'position')
+        if (posChange?.position) {
+          if (viewState === 'agents' && !n.id.includes(':')) savedPos.current[n.id] = posChange.position
+          return { ...n, position: posChange.position }
+        }
+        // Handle selection changes
+        const selChange = changes.find((c: any) => c.id === n.id && c.type === 'select')
+        if (selChange) {
+          return { ...n, selected: selChange.selected }
         }
         return n
       })
 
       // On drag end: resolve overlaps
       if (hasDragEnd) {
+        // Save positions for all agent nodes that were part of selection
+        next.forEach(n => {
+          if (viewState === 'agents' && !n.id.includes(':') && savedPos.current[n.id] !== n.position) {
+            savedPos.current[n.id] = n.position
+          }
+        })
         next = resolveOverlaps(next, reactFlow.getZoom())
         if (viewState === 'agents') savePositions(savedPos.current)
       }
@@ -447,6 +459,10 @@ function GraphInner() {
         minZoom={0.15}
         maxZoom={2.5}
         nodesDraggable={viewState !== 'transitioning'}
+        selectionOnDrag={false}
+        selectionKeyCode="Shift"
+        multiSelectionKeyCode="Shift"
+        deleteKeyCode={null}
       >
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1a1a22" />
         <Controls
