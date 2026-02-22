@@ -32,6 +32,7 @@ const ORBIT_ACCENT = '#727b85'
 const ORBIT_DASH = '#676f79'
 const ORBIT_PLANE_Y = -0.18
 const ENABLE_FOCUS_ORBIT_PANELS = false
+const ignoreRaycast: THREE.Object3D['raycast'] = () => {}
 
 function layoutAgents(agents: AgentData[]): Map<string, { pos: [number, number, number]; orbit: number }> {
   const m = new Map<string, { pos: [number, number, number]; orbit: number }>()
@@ -73,6 +74,122 @@ const gridDotFrag = `
   }
 `
 
+const starVert = `
+  attribute float aAlpha;
+  attribute float aSize;
+  attribute float aPhase;
+  uniform float uTime;
+  uniform float uOpacity;
+  varying float vAlpha;
+  void main() {
+    float twinkle = 0.6 + sin(uTime + aPhase) * 0.4;
+    vAlpha = aAlpha * twinkle * uOpacity;
+    vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+    gl_PointSize = aSize * (180.0 / -mvPos.z);
+    gl_Position = projectionMatrix * mvPos;
+  }
+`
+const starFrag = `
+  uniform vec3 uColor;
+  varying float vAlpha;
+  void main() {
+    float d = length(gl_PointCoord - 0.5) * 2.0;
+    float core = smoothstep(0.55, 0.0, d);
+    float halo = exp(-d * d * 4.0) * 0.35;
+    float a = (core + halo) * vAlpha;
+    if (a < 0.003) discard;
+    gl_FragColor = vec4(uColor, a);
+  }
+`
+
+const nebulaVert = `
+  varying vec3 vWorldPos;
+  void main() {
+    vec4 wp = modelMatrix * vec4(position, 1.0);
+    vWorldPos = wp.xyz;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`
+const nebulaFrag = `
+  uniform float uTime;
+  varying vec3 vWorldPos;
+
+  float hash(vec3 p) {
+    p = fract(p * 0.3183099 + vec3(0.11, 0.37, 0.73));
+    p *= 17.0;
+    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+  }
+
+  float noise(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+
+    float n000 = hash(i + vec3(0.0, 0.0, 0.0));
+    float n100 = hash(i + vec3(1.0, 0.0, 0.0));
+    float n010 = hash(i + vec3(0.0, 1.0, 0.0));
+    float n110 = hash(i + vec3(1.0, 1.0, 0.0));
+    float n001 = hash(i + vec3(0.0, 0.0, 1.0));
+    float n101 = hash(i + vec3(1.0, 0.0, 1.0));
+    float n011 = hash(i + vec3(0.0, 1.0, 1.0));
+    float n111 = hash(i + vec3(1.0, 1.0, 1.0));
+
+    float nx00 = mix(n000, n100, f.x);
+    float nx10 = mix(n010, n110, f.x);
+    float nx01 = mix(n001, n101, f.x);
+    float nx11 = mix(n011, n111, f.x);
+    float nxy0 = mix(nx00, nx10, f.y);
+    float nxy1 = mix(nx01, nx11, f.y);
+    return mix(nxy0, nxy1, f.z);
+  }
+
+  float fbm(vec3 p) {
+    float v = 0.0;
+    float a = 0.56;
+    for (int i = 0; i < 4; i++) {
+      v += noise(p) * a;
+      p = p * 2.17 + vec3(7.13, 2.31, 4.73);
+      a *= 0.5;
+    }
+    return v;
+  }
+
+  void main() {
+    vec3 dir = normalize(vWorldPos);
+    float h = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
+    vec3 deep = vec3(0.008, 0.015, 0.037);
+    vec3 mid = vec3(0.012, 0.03, 0.067);
+    vec3 color = mix(deep, mid, h);
+
+    float t = uTime * 0.018;
+    float cloudA = fbm(dir * 5.6 + vec3(t, -t * 0.7, t * 0.4));
+    float cloudB = fbm(dir * 9.3 + vec3(-t * 1.15, t * 0.82, -t * 0.35));
+    float neb = smoothstep(0.43, 0.86, cloudA * 0.7 + cloudB * 0.3);
+
+    color += vec3(0.08, 0.33, 0.44) * neb * 0.22;
+    color += vec3(0.04, 0.24, 0.2) * neb * 0.14;
+
+    float starMask = smoothstep(0.955, 1.0, noise(dir * 180.0 + vec3(t * 2.0)));
+    float stars = starMask * (0.35 + 0.65 * noise(dir * 420.0));
+    color += vec3(0.82, 0.92, 1.0) * stars * 0.65;
+
+    gl_FragColor = vec4(color, 1.0);
+  }
+`
+
+function circlePoints(radius: number, y: number, segments: number, wobble = 0, wobbleFreq = 8): THREE.Vector3[] {
+  const pts: THREE.Vector3[] = []
+  for (let i = 0; i <= segments; i++) {
+    const a = (i / segments) * Math.PI * 2
+    const wave = wobble === 0 ? 0 : Math.sin(a * wobbleFreq) * wobble + Math.cos(a * (wobbleFreq * 0.62)) * wobble * 0.48
+    const x = Math.cos(a) * (radius + wave)
+    const z = Math.sin(a) * (radius + wave)
+    const yOffset = y + Math.sin(a * (wobbleFreq * 0.35)) * wobble * 0.22
+    pts.push(new THREE.Vector3(x, yOffset, z))
+  }
+  return pts
+}
+
 function SketchGrid() {
   const { positions, alphas, sizes } = useMemo(() => {
     const pts: number[] = [], als: number[] = [], szs: number[] = []
@@ -84,13 +201,13 @@ function SketchGrid() {
         const fade = Math.max(0.2, 1 - dist / range)
         const isMajor = Math.abs(x % (sp * 4)) < 0.1 && Math.abs(z % (sp * 4)) < 0.1
         const isMid = Math.abs(x % (sp * 4)) < 0.1 || Math.abs(z % (sp * 4)) < 0.1
-        als.push(isMajor ? fade * 0.42 : isMid ? fade * 0.22 : fade * 0.08)
+        als.push(isMajor ? fade * 0.34 : isMid ? fade * 0.18 : fade * 0.06)
         szs.push(isMajor ? 2.8 : isMid ? 1.8 : 1.1)
       }
     }
     return { positions: new Float32Array(pts), alphas: new Float32Array(als), sizes: new Float32Array(szs) }
   }, [])
-  const uniforms = useMemo(() => ({ uColor: { value: new THREE.Color('#31485c') } }), [])
+  const uniforms = useMemo(() => ({ uColor: { value: new THREE.Color('#2f465b') } }), [])
   return (
     <points>
       <bufferGeometry>
@@ -129,11 +246,206 @@ function SketchGridLines() {
 function GroundReference() {
   return (
     <group>
-      <gridHelper args={[180, 72, '#172a38', '#0c1a24']} position={[0, -0.16, 0]} />
-      <Line points={[[-92, -0.11, 0], [92, -0.11, 0]]} color="#294355" lineWidth={0.7} transparent opacity={0.1} />
-      <Line points={[[0, -0.11, -92], [0, -0.11, 92]]} color="#294355" lineWidth={0.7} transparent opacity={0.1} />
-      <Line points={[[-64, -0.11, -64], [64, -0.11, 64]]} color="#1b2d3a" lineWidth={0.45} transparent opacity={0.045} />
-      <Line points={[[-64, -0.11, 64], [64, -0.11, -64]]} color="#1b2d3a" lineWidth={0.45} transparent opacity={0.045} />
+      <gridHelper args={[180, 72, '#142a3c', '#0b1723']} position={[0, -0.16, 0]} />
+      <Line points={[[-92, -0.11, 0], [92, -0.11, 0]]} color="#28485f" lineWidth={0.7} transparent opacity={0.082} />
+      <Line points={[[0, -0.11, -92], [0, -0.11, 92]]} color="#28485f" lineWidth={0.7} transparent opacity={0.082} />
+      <Line points={[[-64, -0.11, -64], [64, -0.11, 64]]} color="#1b3144" lineWidth={0.45} transparent opacity={0.034} />
+      <Line points={[[-64, -0.11, 64], [64, -0.11, -64]]} color="#1b3144" lineWidth={0.45} transparent opacity={0.034} />
+    </group>
+  )
+}
+
+function NebulaDome() {
+  const matRef = useRef<THREE.ShaderMaterial>(null)
+  const uniforms = useMemo(() => ({ uTime: { value: 0 } }), [])
+
+  useFrame(({ clock }) => {
+    if (!matRef.current) return
+    matRef.current.uniforms.uTime.value = clock.elapsedTime
+  })
+
+  return (
+    <mesh scale={[250, 250, 250]} renderOrder={-50} raycast={ignoreRaycast}>
+      <sphereGeometry args={[1, 72, 72]} />
+      <shaderMaterial
+        ref={matRef}
+        vertexShader={nebulaVert}
+        fragmentShader={nebulaFrag}
+        uniforms={uniforms}
+        side={THREE.BackSide}
+        depthWrite={false}
+        depthTest={false}
+        fog={false}
+      />
+    </mesh>
+  )
+}
+
+function CosmicStars({
+  count,
+  radius,
+  color,
+  sizeMin,
+  sizeMax,
+  driftSpeed,
+  twinkleSpeed,
+  yScale = 0.9,
+  opacity = 1,
+}: {
+  count: number
+  radius: number
+  color: string
+  sizeMin: number
+  sizeMax: number
+  driftSpeed: number
+  twinkleSpeed: number
+  yScale?: number
+  opacity?: number
+}) {
+  const pointsRef = useRef<THREE.Points>(null)
+  const matRef = useRef<THREE.ShaderMaterial>(null)
+
+  const { positions, alphas, sizes, phases } = useMemo(() => {
+    const pts: number[] = []
+    const als: number[] = []
+    const szs: number[] = []
+    const phs: number[] = []
+    for (let i = 0; i < count; i++) {
+      const theta = Math.random() * Math.PI * 2
+      const u = Math.random() * 2 - 1
+      const phi = Math.acos(u)
+      const r = radius * (0.58 + Math.random() * 0.42)
+      const x = Math.sin(phi) * Math.cos(theta) * r
+      const y = Math.cos(phi) * r * yScale
+      const z = Math.sin(phi) * Math.sin(theta) * r
+      pts.push(x, y, z)
+      als.push(0.25 + Math.random() * 0.75)
+      szs.push(sizeMin + Math.random() * (sizeMax - sizeMin))
+      phs.push(Math.random() * Math.PI * 2)
+    }
+    return {
+      positions: new Float32Array(pts),
+      alphas: new Float32Array(als),
+      sizes: new Float32Array(szs),
+      phases: new Float32Array(phs),
+    }
+  }, [count, radius, sizeMin, sizeMax, yScale])
+
+  const uniforms = useMemo(() => ({
+    uColor: { value: new THREE.Color(color) },
+    uTime: { value: 0 },
+    uOpacity: { value: opacity },
+  }), [color, opacity])
+
+  useFrame(({ clock }) => {
+    if (matRef.current) {
+      matRef.current.uniforms.uTime.value = clock.elapsedTime * twinkleSpeed
+    }
+    if (pointsRef.current) {
+      pointsRef.current.rotation.y = clock.elapsedTime * driftSpeed
+    }
+  })
+
+  return (
+    <points ref={pointsRef} raycast={ignoreRaycast}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+        <bufferAttribute attach="attributes-aAlpha" args={[alphas, 1]} />
+        <bufferAttribute attach="attributes-aSize" args={[sizes, 1]} />
+        <bufferAttribute attach="attributes-aPhase" args={[phases, 1]} />
+      </bufferGeometry>
+      <shaderMaterial
+        ref={matRef}
+        vertexShader={starVert}
+        fragmentShader={starFrag}
+        uniforms={uniforms}
+        transparent
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
+    </points>
+  )
+}
+
+function NeuralField() {
+  const rootRef = useRef<THREE.Group>(null)
+  const ringDefs = useMemo(() => ([
+    { radius: 10.5, y: 0.08, tilt: 0.12, speed: 0.065, opacity: 0.26, phase: 0.2 },
+    { radius: 16.5, y: -0.02, tilt: -0.24, speed: -0.045, opacity: 0.2, phase: -1.1 },
+    { radius: 24.0, y: 0.02, tilt: 0.35, speed: 0.032, opacity: 0.16, phase: 0.8 },
+    { radius: 32.0, y: -0.06, tilt: -0.16, speed: -0.022, opacity: 0.13, phase: -0.3 },
+  ]), [])
+  const rings = useMemo(
+    () => ringDefs.map((d, i) => circlePoints(d.radius, d.y, 220, 0.14 + i * 0.03, 6 + i * 2)),
+    [ringDefs],
+  )
+
+  useFrame(({ clock }) => {
+    if (!rootRef.current) return
+    rootRef.current.rotation.y = clock.elapsedTime * 0.01
+    for (let i = 0; i < ringDefs.length; i++) {
+      const child = rootRef.current.children[i]
+      if (!child) continue
+      child.rotation.y = clock.elapsedTime * ringDefs[i].speed + ringDefs[i].phase
+    }
+  })
+
+  return (
+    <group ref={rootRef} position={[0, 0.22, 0]} raycast={ignoreRaycast}>
+      {ringDefs.map((d, i) => (
+        <group key={`neural-ring-${i}`} rotation={[d.tilt, d.phase, 0]}>
+          <Line
+            points={rings[i]}
+            color="#355770"
+            lineWidth={0.52}
+            transparent
+            opacity={d.opacity}
+            dashed
+            dashSize={1.5}
+            gapSize={0.8}
+            raycast={ignoreRaycast}
+          />
+          <Line
+            points={rings[i]}
+            color="#74b4dc"
+            lineWidth={0.25}
+            transparent
+            opacity={d.opacity * 0.48}
+            raycast={ignoreRaycast}
+          />
+        </group>
+      ))}
+    </group>
+  )
+}
+
+function AIUniverseBackdrop() {
+  return (
+    <group>
+      <NebulaDome />
+      <CosmicStars
+        count={1700}
+        radius={210}
+        color="#87b4d6"
+        sizeMin={1.0}
+        sizeMax={2.4}
+        driftSpeed={0.002}
+        twinkleSpeed={0.85}
+        yScale={0.84}
+        opacity={0.9}
+      />
+      <CosmicStars
+        count={900}
+        radius={170}
+        color="#9ee2d4"
+        sizeMin={0.7}
+        sizeMax={1.6}
+        driftSpeed={-0.0015}
+        twinkleSpeed={1.2}
+        yScale={0.72}
+        opacity={0.58}
+      />
+      <NeuralField />
     </group>
   )
 }
@@ -410,18 +722,22 @@ function PlanetSurface({ size, color, color2, active, isMain }: {
   return (
     <group>
       <mesh>
-        <icosahedronGeometry args={[size * 0.9, 6]} />
+        <sphereGeometry args={[size * 0.9, 52, 52]} />
         <meshStandardMaterial
-          color={color2}
+          color={isMain ? '#15253a' : color2}
           emissive={color}
-          emissiveIntensity={active ? (isMain ? 0.42 : 0.3) : 0.14}
-          roughness={0.28}
-          metalness={0.52}
+          emissiveIntensity={active ? (isMain ? 0.45 : 0.3) : 0.15}
+          roughness={0.34}
+          metalness={0.56}
         />
       </mesh>
       <mesh>
-        <icosahedronGeometry args={[size * 0.93, 2]} />
-        <meshBasicMaterial color={color} wireframe transparent opacity={active ? 0.26 : 0.11} />
+        <sphereGeometry args={[size * 0.935, 32, 32]} />
+        <meshBasicMaterial color={color} transparent opacity={active ? 0.17 : 0.07} />
+      </mesh>
+      <mesh>
+        <sphereGeometry args={[size * 0.95, 24, 24]} />
+        <meshBasicMaterial color={color} wireframe transparent opacity={active ? 0.22 : 0.09} />
       </mesh>
     </group>
   )
@@ -435,7 +751,7 @@ function MoonSurface({ radius, color, active }: {
   return (
     <group>
       <mesh>
-        <icosahedronGeometry args={[radius, 4]} />
+        <sphereGeometry args={[radius, 24, 24]} />
         <meshStandardMaterial
           color={active ? '#d4dee8' : '#9aa8b6'}
           emissive={color}
@@ -445,7 +761,7 @@ function MoonSurface({ radius, color, active }: {
         />
       </mesh>
       <mesh>
-        <icosahedronGeometry args={[radius * 1.07, 1]} />
+        <sphereGeometry args={[radius * 1.07, 16, 16]} />
         <meshBasicMaterial color={color} wireframe transparent opacity={active ? 0.5 : 0.2} />
       </mesh>
     </group>
@@ -1278,12 +1594,14 @@ function Scene({
 
   return (
     <>
-      <color attach="background" args={['#03060c']} />
-      <fog attach="fog" args={['#05080f', 72, 160]} />
-      <ambientLight intensity={0.14} color="#6e8da7" />
-      <hemisphereLight args={['#88b3dc', '#090f17', 0.32]} />
-      <directionalLight position={[20, 28, 16]} intensity={0.35} color="#adcfff" />
-      <directionalLight position={[-18, 14, -24]} intensity={0.2} color="#65d7b9" />
+      <color attach="background" args={['#02050d']} />
+      <fog attach="fog" args={['#05101b', 86, 220]} />
+      <AIUniverseBackdrop />
+      <ambientLight intensity={0.18} color="#8eb4d2" />
+      <hemisphereLight args={['#95c0e6', '#07101d', 0.42]} />
+      <directionalLight position={[22, 30, 18]} intensity={0.42} color="#b8d9ff" />
+      <directionalLight position={[-22, 12, -26]} intensity={0.24} color="#67e0c0" />
+      <pointLight position={[0, 8, 0]} intensity={0.45} color="#6fd8ff" distance={120} decay={2} />
 
       <SketchGrid />
       <SketchGridLines />

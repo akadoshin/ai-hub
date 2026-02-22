@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { TopBar } from './components/TopBar'
 import { SceneOverlay } from './components/SceneOverlay'
 import { HubScene } from './3d/SolarSystem'
@@ -26,6 +26,25 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
+
+  // Auto-open Tasks panel when a new running task appears (if no panel is open)
+  const prevRunningIds = useRef<Set<string>>(new Set())
+  const initialLoad = useRef(true)
+  const tasks = useHubStore(s => s.tasks)
+  useEffect(() => {
+    const runningIds = new Set(tasks.filter(t => t.status === 'running').map(t => t.id))
+    if (initialLoad.current) {
+      // Seed with existing running tasks on first load — don't auto-open for these
+      prevRunningIds.current = runningIds
+      initialLoad.current = false
+      return
+    }
+    const hasNew = [...runningIds].some(id => !prevRunningIds.current.has(id))
+    if (hasNew) {
+      setActivePanel(p => p === null ? 'tasks' : p)
+    }
+    prevRunningIds.current = runningIds
+  }, [tasks])
 
   useEffect(() => {
     initWS()
