@@ -763,6 +763,27 @@ app.post('/api/gateway/skills/update', async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }) }
 })
 
+// ── Agent CRUD ──
+app.post('/api/gateway/agents/create', async (req, res) => {
+  try {
+    const { name, workspace } = req.body || {}
+    if (!name || !workspace) return res.status(400).json({ error: 'name and workspace are required' })
+    res.json(await callGatewaySafe('agents.create', { name: String(name), workspace: String(workspace) }, 10000))
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+app.patch('/api/gateway/agents/:id', async (req, res) => {
+  try {
+    res.json(await callGatewaySafe('agents.update', { agentId: req.params.id, ...req.body }, 10000))
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+app.delete('/api/gateway/agents/:id', async (req, res) => {
+  try {
+    res.json(await callGatewaySafe('agents.delete', { agentId: req.params.id }, 10000))
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 app.get('/api/gateway/cron', async (req, res) => {
   try {
     const params = { includeDisabled: parseBool(req.query.includeDisabled, true) }

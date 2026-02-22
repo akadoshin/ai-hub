@@ -232,7 +232,7 @@ function GraphInner() {
     if (!sourceAgent) return
 
     // Did the user drop on another agent node body (not a handle)?
-    const targetId = connectionState.endHandle?.nodeId ?? null
+    const targetId = connectionState.toNode?.id ?? connectionState.toHandle?.nodeId ?? null
     const targetAgent = targetId && targetId !== sourceId
       ? agents.find(a => a.id === targetId) ?? null
       : null

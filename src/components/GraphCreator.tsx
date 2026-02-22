@@ -6,11 +6,33 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Repeat, X, Send, Loader, CheckCircle, XCircle, ChevronRight,
-  Clock, Zap,
+  Clock, Zap, Bot,
 } from 'lucide-react'
 import type { AgentData } from '../store'
 
 // ── API ─────────────────────────────────────────────────────────────────────
+
+async function callGateway(method: string, params: Record<string, unknown>) {
+  const res = await fetch('/api/gateway/call', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ method, params }),
+  })
+  const data = await res.json()
+  if (!res.ok || data?.error) throw new Error(data?.error || `${method} failed`)
+  return data
+}
+
+async function createAgent(name: string, workspace: string) {
+  const res = await fetch('/api/gateway/agents/create', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: name.trim(), workspace: workspace.trim() }),
+  })
+  const data = await res.json()
+  if (!res.ok || data?.error) throw new Error(data?.error || 'Failed to create agent')
+  return data
+}
 
 function parseCronSchedule(raw: string): Record<string, unknown> | null {
   const s = raw.trim().toLowerCase()
@@ -107,9 +129,75 @@ function StatusMsg({ ok, msg }: { ok: boolean; msg: string }) {
   )
 }
 
+// ── Agent form ───────────────────────────────────────────────────────────────
+
+const OPENCLAW_DIR = '/home/aka/.openclaw'
+
+function AgentForm({ onSuccess, onCancel }: {
+  onSuccess: (msg: string) => void
+  onCancel: () => void
+}) {
+  const [name, setName] = useState('')
+  const [workspace, setWorkspace] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Auto-fill workspace when name changes
+  const handleNameChange = (v: string) => {
+    setName(v)
+    const slug = v.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+    if (slug) setWorkspace(`${OPENCLAW_DIR}/workspace-${slug}`)
+    else setWorkspace('')
+  }
+
+  const submit = useCallback(async () => {
+    if (!name.trim()) { setError('Name is required'); return }
+    if (!workspace.trim()) { setError('Workspace path is required'); return }
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await createAgent(name, workspace)
+      onSuccess(`Agent "${result.agentId}" created — restart gateway to activate`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create agent')
+    } finally {
+      setLoading(false)
+    }
+  }, [name, workspace, onSuccess])
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <Label>Agent Name / ID</Label>
+        <Input value={name} onChange={handleNameChange} placeholder="my-agent" />
+        <div className="text-[8px] text-[#444] font-mono mt-1">lowercase, hyphens ok · becomes the agent id</div>
+      </div>
+      <div>
+        <Label>Workspace Path</Label>
+        <Input value={workspace} onChange={setWorkspace} placeholder={`${OPENCLAW_DIR}/workspace-NAME`} />
+        <div className="text-[8px] text-[#444] font-mono mt-1">auto-filled · editable</div>
+      </div>
+      {error && <StatusMsg ok={false} msg={error} />}
+      <div className="flex items-center gap-2 pt-1">
+        <SubmitBtn
+          label="Create Agent"
+          icon={<Bot size={10} />}
+          onClick={submit}
+          loading={loading}
+          disabled={!name.trim()}
+          color="#00ff88"
+        />
+        <button onClick={onCancel} className="text-[9px] font-mono text-[#444] hover:text-[#666] transition-colors px-2">
+          cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Action selector (canvas drop) ────────────────────────────────────────────
 
-type ActionType = 'cron' | 'message'
+type ActionType = 'cron' | 'message' | 'agent'
 
 interface ActionOption {
   id: ActionType
@@ -282,6 +370,13 @@ interface Props {
 
 const CANVAS_ACTIONS: ActionOption[] = [
   {
+    id: 'agent',
+    icon: <Bot size={14} />,
+    label: 'New Agent',
+    description: 'Create a new persistent agent in this system',
+    color: '#00ff88',
+  },
+  {
     id: 'cron',
     icon: <Repeat size={14} />,
     label: 'Add Cron',
@@ -357,7 +452,7 @@ export function GraphCreator({ state, onClose }: Props) {
 
   // Position: keep popover within viewport
   const POPOVER_W = 300
-  const POPOVER_H = 320
+  const POPOVER_H = 380
   const x = Math.min(position.x + 12, window.innerWidth - POPOVER_W - 16)
   const y = Math.min(position.y - 12, window.innerHeight - POPOVER_H - 16)
 
@@ -395,6 +490,7 @@ export function GraphCreator({ state, onClose }: Props) {
                     ? `${sourceAgent.label} → ${targetAgent.label}`
                     : `From ${sourceAgent.label}`
                   )}
+                  {step === 'agent' && 'New Agent'}
                   {step === 'cron' && 'New Cron'}
                   {step === 'message' && 'Send Message'}
                   {step === 'success' && 'Done'}
@@ -431,6 +527,16 @@ export function GraphCreator({ state, onClose }: Props) {
                       onSelect={() => setStep(opt.id)}
                     />
                   ))}
+                </motion.div>
+              )}
+
+              {/* Step: new agent form */}
+              {step === 'agent' && (
+                <motion.div initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.12 }}>
+                  <AgentForm
+                    onSuccess={handleSuccess}
+                    onCancel={() => setStep('select')}
+                  />
                 </motion.div>
               )}
 
