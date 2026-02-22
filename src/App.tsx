@@ -19,7 +19,7 @@ const viewTabs = [
 
 export default function App() {
   const { loadMockData } = useHubStore()
-  const [view, setView] = useState<ViewMode>('3d')
+  const [view, setView] = useState<ViewMode>('graph')
 
   useEffect(() => {
     initWS()
@@ -56,11 +56,10 @@ export default function App() {
         </div>
 
         {/* Right sidebar */}
-        <div className="w-[280px] flex flex-col bg-[#080810] border-l border-[#1a1a22] overflow-hidden shrink-0">
+        <div className="w-[300px] flex flex-col bg-[#080810] border-l border-[#1a1a22] overflow-hidden shrink-0">
           <div className="flex-1 overflow-hidden flex flex-col">
             <TasksPanel sidebar />
           </div>
-          <MeshyPanel />
         </div>
       </div>
     </div>
