@@ -763,6 +763,29 @@ app.post('/api/gateway/skills/update', async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }) }
 })
 
+// ── System control ──
+import { exec as execChild } from 'child_process'
+import { promisify } from 'util'
+const execAsync = promisify(execChild)
+
+app.post('/api/system/gateway/restart', async (req, res) => {
+  try {
+    await execAsync('systemctl --user restart openclaw-gateway.service')
+    res.json({ ok: true, message: 'Gateway restart initiated' })
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Restart failed' })
+  }
+})
+
+app.get('/api/system/gateway/status', async (req, res) => {
+  try {
+    const { stdout } = await execAsync('systemctl --user is-active openclaw-gateway.service')
+    res.json({ status: stdout.trim() })
+  } catch {
+    res.json({ status: 'inactive' })
+  }
+})
+
 // ── Agent CRUD ──
 app.post('/api/gateway/agents/create', async (req, res) => {
   try {

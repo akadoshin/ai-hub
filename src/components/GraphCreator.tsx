@@ -6,7 +6,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Repeat, X, Send, Loader, CheckCircle, XCircle, ChevronRight,
-  Clock, Zap, Bot,
+  Clock, Zap, Bot, RefreshCw,
 } from 'lucide-react'
 import type { AgentData } from '../store'
 
@@ -133,6 +133,13 @@ function StatusMsg({ ok, msg }: { ok: boolean; msg: string }) {
 
 const OPENCLAW_DIR = '/home/aka/.openclaw'
 
+async function restartGateway() {
+  const res = await fetch('/api/system/gateway/restart', { method: 'POST' })
+  const data = await res.json()
+  if (!res.ok || data?.error) throw new Error(data?.error || 'Restart failed')
+  return data
+}
+
 function AgentForm({ onSuccess, onCancel }: {
   onSuccess: (msg: string) => void
   onCancel: () => void
@@ -141,8 +148,10 @@ function AgentForm({ onSuccess, onCancel }: {
   const [workspace, setWorkspace] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [created, setCreated] = useState<string | null>(null) // agentId after create
+  const [restarting, setRestarting] = useState(false)
+  const [restartDone, setRestartDone] = useState(false)
 
-  // Auto-fill workspace when name changes
   const handleNameChange = (v: string) => {
     setName(v)
     const slug = v.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
@@ -157,14 +166,71 @@ function AgentForm({ onSuccess, onCancel }: {
     setError(null)
     try {
       const result = await createAgent(name, workspace)
-      onSuccess(`Agent "${result.agentId}" created — restart gateway to activate`)
+      setCreated(result.agentId)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create agent')
     } finally {
       setLoading(false)
     }
-  }, [name, workspace, onSuccess])
+  }, [name, workspace])
 
+  const handleRestart = useCallback(async () => {
+    setRestarting(true)
+    try {
+      await restartGateway()
+      setRestartDone(true)
+      // Wait for gateway to come back up, then signal done
+      setTimeout(() => onSuccess(`Agent "${created}" active — gateway restarted`), 3000)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Restart failed')
+      setRestarting(false)
+    }
+  }, [created, onSuccess])
+
+  // ── Created state: show restart prompt ──
+  if (created) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="space-y-3"
+      >
+        <StatusMsg ok msg={`Agent "${created}" created`} />
+
+        <div className="rounded-lg border border-[#1a2a1a] bg-[#0a160a] px-3 py-2.5 text-[9px] font-mono text-[#5a8a5a] leading-relaxed">
+          The gateway must restart to activate the new agent. This will briefly disconnect (~3s).
+        </div>
+
+        {error && <StatusMsg ok={false} msg={error} />}
+
+        {restartDone ? (
+          <div className="flex items-center gap-2 text-[9px] font-mono text-[#00ff88]">
+            <Loader size={9} className="animate-spin" />
+            Restarting gateway…
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 pt-1">
+            <SubmitBtn
+              label={restarting ? 'Restarting…' : 'Restart Gateway'}
+              icon={restarting ? <Loader size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+              onClick={handleRestart}
+              loading={false}
+              disabled={restarting}
+              color="#f59e0b"
+            />
+            <button
+              onClick={() => onSuccess(`Agent "${created}" created — restart gateway manually to activate`)}
+              className="text-[9px] font-mono text-[#444] hover:text-[#666] transition-colors px-2"
+            >
+              later
+            </button>
+          </div>
+        )}
+      </motion.div>
+    )
+  }
+
+  // ── Default: create form ──
   return (
     <div className="space-y-3">
       <div>
