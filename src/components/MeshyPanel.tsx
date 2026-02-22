@@ -27,49 +27,36 @@ export function MeshyPanel() {
   }
 
   return (
-    <div style={{
-      background: '#111',
-      borderTop: '1px solid #2a2a2a',
-      flexShrink: 0,
-    }}>
+    <div className="bg-[#080810] border-t border-[#1a1a22] shrink-0">
       {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}
-        style={{
-          width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-          padding: '10px 16px', background: 'none', border: 'none',
-          cursor: 'pointer', color: '#e0e0e0',
-          borderBottom: expanded ? '1px solid #2a2a2a' : 'none',
-        }}
+        className="w-full flex items-center gap-2 px-4 py-2.5 bg-transparent border-none cursor-pointer text-[#eee] hover:bg-[#0a0a14] transition-colors"
+        style={{ borderBottom: expanded ? '1px solid #1a1a22' : 'none' }}
       >
-        <Box size={14} color="#00ff88" />
-        <span style={{ fontSize: 11, fontWeight: 700, color: '#555', letterSpacing: '0.08em', textTransform: 'uppercase', flex: 1, textAlign: 'left' }}>
+        <Box size={14} className="text-[#00ff88]" />
+        <span className="text-[11px] font-bold text-[#555] tracking-widest uppercase flex-1 text-left">
           Meshy 3D Generator
         </span>
-        {expanded ? <ChevronDown size={14} color="#555" /> : <ChevronUp size={14} color="#555" />}
+        {expanded ? <ChevronDown size={14} className="text-[#555]" /> : <ChevronUp size={14} className="text-[#555]" />}
       </button>
 
       {expanded && (
-        <div style={{ padding: '12px 12px' }}>
-          {/* Error */}
+        <div className="p-3">
           {error && (
-            <div style={{ background: '#f8717120', border: '1px solid #f8717140', borderRadius: 6, padding: '6px 10px', fontSize: 11, color: '#f87171', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="bg-[#f8717115] border border-[#f8717130] rounded-md px-2.5 py-1.5 text-[11px] text-[#f87171] mb-2 flex justify-between items-center">
               <span>{error}</span>
-              <button onClick={clearError} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: 0 }}>×</button>
+              <button onClick={clearError} className="bg-transparent border-none text-[#f87171] cursor-pointer p-0 text-base">×</button>
             </div>
           )}
 
           {/* Presets */}
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+          <div className="flex gap-1 flex-wrap mb-2">
             {PRESETS.map(p => (
               <button
                 key={p.label}
                 onClick={() => setPrompt(p.prompt)}
-                style={{
-                  padding: '2px 8px', borderRadius: 12, fontSize: 10,
-                  background: '#1a2a1a', border: '1px solid #00ff8830',
-                  color: '#00ff88', cursor: 'pointer', fontWeight: 600,
-                }}
+                className="px-2 py-0.5 rounded-full text-[10px] bg-[#00ff8808] border border-[#00ff8825] text-[#00ff88] cursor-pointer font-semibold hover:bg-[#00ff8815] transition-colors"
               >
                 {p.label}
               </button>
@@ -82,21 +69,14 @@ export function MeshyPanel() {
             onChange={e => setPrompt(e.target.value)}
             placeholder="Describe a 3D model to generate..."
             rows={2}
-            style={{
-              width: '100%', background: '#1a1a1a', border: '1px solid #2a2a2a',
-              borderRadius: 6, padding: '6px 8px', color: '#e0e0e0', fontSize: 11,
-              resize: 'none', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
-            }}
+            className="w-full bg-[#0a0a10] border border-[#1a1a22] rounded-md px-2 py-1.5 text-[#eee] text-[11px] resize-none outline-none font-inherit focus:border-[#00ff8840] transition-colors"
           />
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 6, alignItems: 'center' }}>
+          <div className="flex gap-2 mt-1.5 items-center">
             <select
               value={artStyle}
               onChange={e => setArtStyle(e.target.value)}
-              style={{
-                background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 6,
-                color: '#888', fontSize: 10, padding: '4px 6px', outline: 'none',
-              }}
+              className="bg-[#0a0a10] border border-[#1a1a22] rounded-md text-[#888] text-[10px] px-1.5 py-1 outline-none"
             >
               {ART_STYLES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -104,13 +84,11 @@ export function MeshyPanel() {
             <button
               onClick={handleGenerate}
               disabled={!prompt.trim() || generating}
-              style={{
-                flex: 1, padding: '6px', borderRadius: 6, border: 'none',
-                background: generating || !prompt.trim() ? '#1a2a1a' : '#00ff88',
-                color: generating || !prompt.trim() ? '#00ff8860' : '#0f0f0f',
-                fontSize: 11, fontWeight: 700, cursor: generating ? 'wait' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              }}
+              className={`flex-1 py-1.5 rounded-md border-none text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors ${
+                generating || !prompt.trim()
+                  ? 'bg-[#00ff8815] text-[#00ff8850] cursor-wait'
+                  : 'bg-[#00ff88] text-[#040407] cursor-pointer hover:bg-[#00ee7d]'
+              }`}
             >
               {generating
                 ? <><Loader size={12} className="animate-spin" /> Generating...</>
@@ -119,35 +97,34 @@ export function MeshyPanel() {
             </button>
           </div>
 
-          {/* Tasks list */}
+          {/* Tasks */}
           {tasks.length > 0 && (
-            <div style={{ marginTop: 10, maxHeight: 140, overflowY: 'auto' }}>
+            <div className="mt-2.5 max-h-[140px] overflow-y-auto space-y-1">
               {tasks.slice(0, 8).map(task => (
                 <div
                   key={task.id}
                   onClick={() => task.status === 'SUCCEEDED' ? selectModel(task) : undefined}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '5px 6px', borderRadius: 6, marginBottom: 3,
-                    background: '#151515', border: '1px solid #222',
-                    cursor: task.status === 'SUCCEEDED' ? 'pointer' : 'default',
-                  }}
+                  className={`flex items-center gap-2 px-1.5 py-1.5 rounded-md bg-[#0a0a10] border border-[#1a1a22] ${
+                    task.status === 'SUCCEEDED' ? 'cursor-pointer hover:border-[#2a2a33]' : ''
+                  } transition-colors`}
                 >
                   {task.thumbnail_url
-                    ? <img src={task.thumbnail_url} style={{ width: 28, height: 28, borderRadius: 4, objectFit: 'cover' }} />
-                    : <div style={{ width: 28, height: 28, borderRadius: 4, background: '#1a2a1a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Box size={12} color="#00ff8860" />
+                    ? <img src={task.thumbnail_url} className="w-7 h-7 rounded object-cover" />
+                    : <div className="w-7 h-7 rounded bg-[#00ff8808] flex items-center justify-center">
+                        <Box size={12} className="text-[#00ff8840]" />
                       </div>
                   }
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 10, color: '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] text-[#ccc] truncate">
                       {task.prompt || task.id.slice(0, 16) + '...'}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                      {task.status === 'SUCCEEDED' && <CheckCircle size={9} color="#00ff88" />}
-                      {task.status === 'FAILED' && <XCircle size={9} color="#f87171" />}
-                      {(task.status === 'PENDING' || task.status === 'IN_PROGRESS') && <Loader size={9} color="#60a5fa" className="animate-spin" />}
-                      <span style={{ fontSize: 9, color: task.status === 'SUCCEEDED' ? '#00ff88' : task.status === 'FAILED' ? '#f87171' : '#60a5fa' }}>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      {task.status === 'SUCCEEDED' && <CheckCircle size={9} className="text-[#00ff88]" />}
+                      {task.status === 'FAILED' && <XCircle size={9} className="text-[#f87171]" />}
+                      {(task.status === 'PENDING' || task.status === 'IN_PROGRESS') && <Loader size={9} className="text-[#60a5fa] animate-spin" />}
+                      <span className={`text-[9px] font-mono ${
+                        task.status === 'SUCCEEDED' ? 'text-[#00ff88]' : task.status === 'FAILED' ? 'text-[#f87171]' : 'text-[#60a5fa]'
+                      }`}>
                         {task.status === 'IN_PROGRESS' ? `${task.progress}%` : task.status}
                       </span>
                     </div>

@@ -1,40 +1,55 @@
 @import "tailwindcss";
 
+@theme {
+  --color-accent: #00ff88;
+  --color-bg-primary: #040407;
+  --color-bg-card: #0a0a10;
+  --color-border: #1a1a22;
+}
+
 :root {
   --accent: #00ff88;
-  --bg: #0f0f0f;
-  --card: #1a1a1a;
-  --border: #2a2a2a;
-  --text-muted: #666;
+  --bg: #040407;
+  --card: #0a0a10;
+  --border: #1a1a22;
+  --text-muted: #555;
 }
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  background: var(--bg);
-  color: #e0e0e0;
+  background: #040407;
+  color: #eee;
   font-family: 'Inter', 'SF Pro Display', system-ui, -apple-system, sans-serif;
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
-.react-flow__background { background: #0f0f0f; }
-.react-flow__minimap { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; }
-.react-flow__controls { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; }
+/* ReactFlow overrides for dark theme */
+.react-flow__background { background: #040407; }
+.react-flow__minimap { background: #0a0a10; border: 1px solid #1a1a22; border-radius: 8px; }
+.react-flow__controls { background: #0a0a10; border: 1px solid #1a1a22; border-radius: 8px; }
 .react-flow__controls-button {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  color: #e0e0e0;
-  fill: #e0e0e0;
+  background: #0a0a10;
+  border: 1px solid #1a1a22;
+  color: #eee;
+  fill: #eee;
 }
-.react-flow__controls-button:hover { background: #2a2a2a; }
+.react-flow__controls-button:hover { background: #1a1a22; }
 
+/* Animations */
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
 }
 .pulse { animation: pulse-dot 2s ease-in-out infinite; }
 
+/* Scrollbar */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+::-webkit-scrollbar-thumb { background: #1a1a22; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #2a2a33; }
+
+/* Monospace for data */
+.font-mono { font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace; }

@@ -11,7 +11,6 @@ import AgentNode from './AgentNode'
 import { AgentDetail } from './AgentDetail'
 
 const nodeTypes = { agentNode: AgentNode }
-
 const proOptions = { hideAttribution: true }
 
 export function GraphView() {
@@ -23,7 +22,6 @@ export function GraphView() {
   }, [agents, setSelectedAgent])
 
   const onNodesChange = useCallback((changes: any) => {
-    // Allow positional changes (dragging)
     const next = nodes.map(n => {
       const change = changes.find((c: any) => c.id === n.id && c.type === 'position')
       if (change?.position) return { ...n, position: change.position }
@@ -33,7 +31,7 @@ export function GraphView() {
   }, [nodes, edges, setNodesEdges])
 
   return (
-    <div style={{ flex: 1, position: 'relative', height: '100%' }}>
+    <div className="flex-1 relative h-full">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -46,12 +44,7 @@ export function GraphView() {
         minZoom={0.3}
         maxZoom={2}
       >
-        <Background
-          variant={BackgroundVariant.Dots}
-          gap={24}
-          size={1}
-          color="#2a2a2a"
-        />
+        <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1a1a22" />
         <Controls showInteractive={false} />
         <MiniMap
           nodeColor={(n) => {
@@ -59,21 +52,17 @@ export function GraphView() {
             const colors = { active: '#00ff88', idle: '#555', thinking: '#60a5fa', error: '#f87171' }
             return colors[a?.status] ?? '#555'
           }}
-          maskColor="#0f0f0f88"
+          maskColor="#04040788"
         />
       </ReactFlow>
 
       <AgentDetail />
 
       {nodes.length === 0 && (
-        <div style={{
-          position: 'absolute', inset: 0, display: 'flex',
-          flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          color: '#333', pointerEvents: 'none',
-        }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>🤖</div>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>No agents detected</div>
-          <div style={{ fontSize: 12, marginTop: 4 }}>Waiting for OpenClaw connection...</div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-[#333] pointer-events-none">
+          <div className="text-5xl mb-3">🤖</div>
+          <div className="text-sm font-semibold">No agents detected</div>
+          <div className="text-xs mt-1">Waiting for OpenClaw connection...</div>
         </div>
       )}
     </div>

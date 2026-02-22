@@ -1,37 +1,50 @@
 /**
- * Real-time connection to OpenClaw via our API server.
- * Uses Server-Sent Events (SSE) for live updates.
- * Falls back to polling if SSE fails.
+ * Real-time connection to AI Hub API server.
+ * Uses SSE for live updates, falls back to polling.
  */
 import { useHubStore } from './store'
-import type { AgentData, Task } from './store'
+import type { AgentData, Task, Connection } from './store'
 
 const API_BASE = '/api'
 let eventSource: EventSource | null = null
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
-async function fetchInitialState() {
+async function fetchFullState() {
   try {
-    const [agentsRes, sessionsRes] = await Promise.all([
-      fetch(`${API_BASE}/agents`),
-      fetch(`${API_BASE}/sessions`),
-    ])
+    const res = await fetch(`${API_BASE}/state`)
+    if (!res.ok) throw new Error('fetch failed')
 
-    if (agentsRes.ok) {
-      const agents: AgentData[] = await agentsRes.json()
-      const store = useHubStore.getState()
-      agents.forEach(a => store.upsertAgent(a))
-    }
+    const data = await res.json()
+    const store = useHubStore.getState()
 
-    if (sessionsRes.ok) {
-      const sessions: Task[] = await sessionsRes.json()
-      const store = useHubStore.getState()
-      sessions.forEach(s => store.upsertTask(s))
-    }
+    const agents: AgentData[] = data.agents || []
+    const sessions: Task[] = data.sessions || []
+    const connections: Connection[] = data.connections || []
 
-    useHubStore.getState().setConnected(true)
+    store.setFullState(agents, sessions, connections)
+    store.setConnected(true)
   } catch {
     useHubStore.getState().setConnected(false)
+  }
+}
+
+function handleUpdate(data: any) {
+  const store = useHubStore.getState()
+
+  if (data.agents && data.sessions && data.connections) {
+    // Full state update
+    store.setFullState(data.agents, data.sessions, data.connections)
+  } else {
+    // Partial updates
+    if (data.agents) {
+      data.agents.forEach((a: AgentData) => store.upsertAgent(a))
+    }
+    if (data.sessions) {
+      data.sessions.forEach((s: Task) => store.upsertTask(s))
+    }
+    if (data.connections) {
+      store.setConnections(data.connections)
+    }
   }
 }
 
@@ -46,15 +59,8 @@ function connectSSE() {
     eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
-        const store = useHubStore.getState()
-
         if (data.type === 'update') {
-          if (data.agents) {
-            data.agents.forEach((a: AgentData) => store.upsertAgent(a))
-          }
-          if (data.sessions) {
-            data.sessions.forEach((s: Task) => store.upsertTask(s))
-          }
+          handleUpdate(data)
         }
       } catch {}
     }
@@ -63,9 +69,7 @@ function connectSSE() {
       useHubStore.getState().setConnected(false)
       eventSource?.close()
       eventSource = null
-      // Fallback: poll every 5s
       startPolling()
-      // Try SSE again after 10s
       setTimeout(connectSSE, 10000)
     }
   } catch {
@@ -75,13 +79,11 @@ function connectSSE() {
 
 function startPolling() {
   if (pollTimer) return
-  pollTimer = setInterval(fetchInitialState, 5000)
+  pollTimer = setInterval(fetchFullState, 5000)
 }
 
 export function initWS() {
-  // Fetch initial state immediately
-  fetchInitialState()
-  // Then connect SSE for live updates
+  fetchFullState()
   connectSSE()
 }
 

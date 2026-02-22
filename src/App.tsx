@@ -8,8 +8,14 @@ import { HubScene } from './3d/SolarSystem'
 import { initWS } from './ws'
 import { useHubStore } from './store'
 import { Box, GitBranch } from 'lucide-react'
+import { AnimatedTabs } from './ui/tabs'
 
 type ViewMode = '3d' | 'graph'
+
+const viewTabs = [
+  { id: '3d', label: '3D Simulation', icon: <Box size={11} /> },
+  { id: 'graph', label: 'Agent Graph', icon: <GitBranch size={11} /> },
+]
 
 export default function App() {
   const { loadMockData } = useHubStore()
@@ -17,7 +23,6 @@ export default function App() {
 
   useEffect(() => {
     initWS()
-    // loadMockData only if no real data arrives within 3s
     const timeout = setTimeout(() => {
       const { agents } = useHubStore.getState()
       if (agents.length === 0) loadMockData()
@@ -26,25 +31,21 @@ export default function App() {
   }, [])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#070709' }}>
+    <div className="flex flex-col h-screen bg-[#040407]">
       <TopBar />
 
       {/* View tabs */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 2,
-        padding: '0 16px',
-        background: '#0c0c0e',
-        borderBottom: '1px solid #1a1a1a',
-        height: 34,
-        flexShrink: 0,
-      }}>
-        <TabButton active={view === '3d'} onClick={() => setView('3d')} icon={<Box size={11} />} label="3D Simulation" />
-        <TabButton active={view === 'graph'} onClick={() => setView('graph')} icon={<GitBranch size={11} />} label="Agent Graph" />
+      <div className="flex items-center px-4 bg-[#080810] border-b border-[#1a1a22] h-[38px] shrink-0">
+        <AnimatedTabs
+          tabs={viewTabs}
+          activeTab={view}
+          onChange={(id) => setView(id as ViewMode)}
+        />
       </div>
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div className="flex flex-1 overflow-hidden">
         {/* Main view */}
-        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+        <div className="flex-1 relative overflow-hidden">
           {view === '3d' && (
             <>
               <HubScene />
@@ -55,40 +56,13 @@ export default function App() {
         </div>
 
         {/* Right sidebar */}
-        <div style={{
-          width: 280, display: 'flex', flexDirection: 'column',
-          background: '#0c0c0e', borderLeft: '1px solid #1a1a1a',
-          overflow: 'hidden', flexShrink: 0,
-        }}>
-          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div className="w-[280px] flex flex-col bg-[#080810] border-l border-[#1a1a22] overflow-hidden shrink-0">
+          <div className="flex-1 overflow-hidden flex flex-col">
             <TasksPanel sidebar />
           </div>
           <MeshyPanel />
         </div>
       </div>
     </div>
-  )
-}
-
-function TabButton({ active, onClick, icon, label }: {
-  active: boolean; onClick: () => void; icon: React.ReactNode; label: string
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 5,
-        padding: '5px 14px', border: 'none', cursor: 'pointer',
-        background: active ? '#00ff8812' : 'transparent',
-        color: active ? '#00ff88' : '#444',
-        fontSize: 11, fontWeight: active ? 700 : 500,
-        borderBottom: active ? '2px solid #00ff88' : '2px solid transparent',
-        borderRadius: '6px 6px 0 0',
-        transition: 'all 0.15s',
-      }}
-    >
-      {icon}
-      {label}
-    </button>
   )
 }

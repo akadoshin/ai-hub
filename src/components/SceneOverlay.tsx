@@ -1,4 +1,5 @@
 import { useHubStore } from '../store'
+import { BackgroundBeams } from '../ui/background-beams'
 
 export function SceneOverlay() {
   const { agents, tasks, connected } = useHubStore()
@@ -7,26 +8,20 @@ export function SceneOverlay() {
   const running = tasks.filter(t => t.status === 'running').length
 
   return (
-    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 5 }}>
-      {/* Bottom-left: solar system legend */}
-      <div style={{
-        position: 'absolute', bottom: 14, left: 14,
-        display: 'flex', flexDirection: 'column', gap: 3,
-        background: '#050508cc', borderRadius: 8, padding: '8px 10px',
-        border: '1px solid #1a1a1a',
-      }}>
-        <div style={{ fontSize: 8, color: '#444', fontWeight: 700, letterSpacing: '0.06em', marginBottom: 2 }}>SYSTEM MAP</div>
+    <div className="absolute inset-0 pointer-events-none z-5">
+      <BackgroundBeams className="opacity-50" />
+
+      {/* Bottom-left: legend */}
+      <div className="absolute bottom-3.5 left-3.5 flex flex-col gap-1 bg-[#050508]/80 backdrop-blur-md rounded-lg px-2.5 py-2 border border-[#1a1a22]">
+        <div className="text-[8px] text-[#444] font-bold tracking-wider mb-0.5">SYSTEM MAP</div>
         <Legend emoji="☀" label="Star — core agent" />
         <Legend emoji="🪐" label="Planet — persistent agent" />
         <Legend emoji="🌙" label="Moon — cron task" />
         <Legend emoji="☄" label="Comet — worker/spawn" />
       </div>
 
-      {/* Top-right: status */}
-      <div style={{
-        position: 'absolute', top: 10, right: 292,
-        display: 'flex', gap: 6,
-      }}>
+      {/* Top-right: status pills */}
+      <div className="absolute top-2.5 right-[292px] flex gap-1.5">
         <Pill color={connected ? '#00ff88' : '#f87171'} label={connected ? 'LIVE' : 'OFFLINE'} pulse={connected} />
         {active > 0 && <Pill color="#00ff88" label={`${active} active`} />}
         <Pill color="#555" label={`${crons} moons`} />
@@ -38,8 +33,8 @@ export function SceneOverlay() {
 
 function Legend({ emoji, label }: { emoji: string; label: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 9, color: '#555' }}>
-      <span style={{ fontSize: 10 }}>{emoji}</span>
+    <div className="flex items-center gap-1.5 text-[9px] text-[#555]">
+      <span className="text-[10px]">{emoji}</span>
       {label}
     </div>
   )
@@ -47,13 +42,20 @@ function Legend({ emoji, label }: { emoji: string; label: string }) {
 
 function Pill({ color, label, pulse }: { color: string; label: string; pulse?: boolean }) {
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 5,
-      background: `${color}10`, border: `1px solid ${color}25`,
-      borderRadius: 14, padding: '2px 8px',
-      fontSize: 9, color, fontWeight: 600,
-    }}>
-      {pulse && <div className="pulse" style={{ width: 4, height: 4, borderRadius: '50%', background: color }} />}
+    <div
+      className="flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-semibold border backdrop-blur-sm"
+      style={{
+        background: `${color}10`,
+        borderColor: `${color}25`,
+        color,
+      }}
+    >
+      {pulse && (
+        <div
+          className="w-1 h-1 rounded-full animate-pulse"
+          style={{ background: color, boxShadow: `0 0 4px ${color}` }}
+        />
+      )}
       {label}
     </div>
   )

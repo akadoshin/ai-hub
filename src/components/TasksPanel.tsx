@@ -1,6 +1,8 @@
 import { useHubStore } from '../store'
 import type { Task } from '../store'
 import { CheckCircle, XCircle, Loader, Clock } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { MovingBorder } from '../ui/moving-border'
 
 function fmtElapsed(ms: number) {
   const s = Math.floor(ms / 1000)
@@ -10,70 +12,63 @@ function fmtElapsed(ms: number) {
   return `${Math.floor(m / 60)}h ${m % 60}m`
 }
 
+const statusConfig = {
+  running:   { icon: <Loader size={13} className="animate-spin" />, color: '#60a5fa', label: 'Running' },
+  completed: { icon: <CheckCircle size={13} />, color: '#00ff88', label: 'Done' },
+  failed:    { icon: <XCircle size={13} />, color: '#f87171', label: 'Failed' },
+}
+
 function TaskCard({ task }: { task: Task }) {
   const elapsed = fmtElapsed(
-    task.status === 'running'
-      ? Date.now() - task.startTime
-      : task.elapsed * 1000
+    task.status === 'running' ? Date.now() - task.startTime : task.elapsed * 1000
   )
+  const cfg = statusConfig[task.status]
 
-  const statusMap = {
-    running:   { icon: <Loader size={13} className="animate-spin" />, color: '#60a5fa', bg: '#60a5fa15' },
-    completed: { icon: <CheckCircle size={13} />, color: '#00ff88', bg: '#00ff8815' },
-    failed:    { icon: <XCircle size={13} />, color: '#f87171', bg: '#f8717115' },
-  }
-  const cfg = statusMap[task.status]
-
-  return (
-    <div style={{
-      background: '#1a1a1a',
-      border: '1px solid #2a2a2a',
-      borderRadius: 10,
-      padding: '10px 12px',
-      marginBottom: 8,
-      borderLeft: `3px solid ${cfg.color}`,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#e0e0e0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
+  const card = (
+    <div className="bg-[#0a0a10] border border-[#1a1a22] rounded-xl p-3 group hover:border-[#2a2a33] transition-colors"
+      style={{ borderLeftWidth: 3, borderLeftColor: cfg.color }}>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-semibold text-[#eee] truncate max-w-[70%]">
           {task.label}
         </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: cfg.color, fontSize: 11 }}>
+        <div className="flex items-center gap-1 text-[11px] font-medium" style={{ color: cfg.color }}>
           {cfg.icon}
-          <span style={{ textTransform: 'capitalize' }}>{task.status}</span>
+          <span>{cfg.label}</span>
         </div>
       </div>
 
-      <div style={{ fontSize: 10, color: '#555', marginBottom: 6 }}>
+      <div className="text-[10px] text-[#555] mb-1.5 font-mono">
         {task.model.replace('anthropic/', '')}
       </div>
 
       {task.lastMessage && (
-        <div style={{
-          fontSize: 11, color: '#888',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          marginBottom: 6,
-          background: '#111', borderRadius: 4, padding: '3px 6px',
-        }}>
+        <div className="text-[11px] text-[#888] truncate mb-1.5 bg-[#060608] rounded px-1.5 py-0.5 font-mono">
           {task.lastMessage}
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#555' }}>
+      <div className="flex items-center gap-1 text-[10px] text-[#555]">
         <Clock size={10} />
-        <span>{elapsed}</span>
+        <span className="font-mono">{elapsed}</span>
       </div>
 
       {task.status === 'running' && (
-        <div style={{ marginTop: 6, height: 2, background: '#2a2a2a', borderRadius: 1, overflow: 'hidden' }}>
-          <div style={{
-            height: '100%', background: cfg.color, borderRadius: 1,
-            animation: 'progress-indeterminate 1.5s ease-in-out infinite',
-            width: '40%',
-          }} />
+        <div className="mt-1.5 h-0.5 bg-[#1a1a22] rounded-full overflow-hidden">
+          <motion.div
+            className="h-full rounded-full"
+            style={{ background: cfg.color }}
+            animate={{ x: ['-100%', '200%'] }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+          />
         </div>
       )}
     </div>
   )
+
+  if (task.status === 'running') {
+    return <MovingBorder borderColor={cfg.color} duration={4} className="bg-[#0a0a10]">{card}</MovingBorder>
+  }
+  return card
 }
 
 export function TasksPanel({ sidebar: _sidebar }: { sidebar?: boolean }) {
@@ -82,40 +77,56 @@ export function TasksPanel({ sidebar: _sidebar }: { sidebar?: boolean }) {
   const done = tasks.filter(t => t.status !== 'running')
 
   return (
-    <div style={{
-      width: 280,
-      height: '100%',
-      background: '#111',
-      borderLeft: '1px solid #2a2a2a',
-      display: 'flex',
-      flexDirection: 'column',
-      flexShrink: 0,
-    }}>
-      <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid #2a2a2a' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#555', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+    <div className="w-[280px] h-full bg-[#080810] border-l border-[#1a1a22] flex flex-col shrink-0">
+      <div className="px-4 py-3 border-b border-[#1a1a22]">
+        <div className="text-[11px] font-bold text-[#555] tracking-widest uppercase">
           Tasks & Sessions
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px' }}>
-        {running.length > 0 && (
-          <>
-            <div style={{ fontSize: 10, color: '#444', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>
-              Running ({running.length})
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        <AnimatePresence mode="popLayout">
+          {running.length > 0 && (
+            <div>
+              <div className="text-[10px] text-[#444] font-bold tracking-wider uppercase mb-1.5">
+                Running ({running.length})
+              </div>
+              {running.map(t => (
+                <motion.div
+                  key={t.id}
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.2 }}
+                  className="mb-2"
+                >
+                  <TaskCard task={t} />
+                </motion.div>
+              ))}
             </div>
-            {running.map(t => <TaskCard key={t.id} task={t} />)}
-          </>
-        )}
-        {done.length > 0 && (
-          <>
-            <div style={{ fontSize: 10, color: '#444', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6, marginTop: 12 }}>
-              Recent
+          )}
+          {done.length > 0 && (
+            <div>
+              <div className="text-[10px] text-[#444] font-bold tracking-wider uppercase mb-1.5 mt-3">
+                Recent
+              </div>
+              {done.map(t => (
+                <motion.div
+                  key={t.id}
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.2 }}
+                  className="mb-2"
+                >
+                  <TaskCard task={t} />
+                </motion.div>
+              ))}
             </div>
-            {done.map(t => <TaskCard key={t.id} task={t} />)}
-          </>
-        )}
+          )}
+        </AnimatePresence>
         {tasks.length === 0 && (
-          <div style={{ color: '#444', fontSize: 12, textAlign: 'center', marginTop: 40 }}>
+          <div className="text-[#444] text-xs text-center mt-10">
             No tasks yet
           </div>
         )}
