@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  ReactFlow, Background, Controls, MiniMap,
-  BackgroundVariant,
+  ReactFlow, ReactFlowProvider, Background, Controls, MiniMap,
+  BackgroundVariant, useReactFlow,
 } from '@xyflow/react'
 import type { Node, Edge, NodeMouseHandler } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useHubStore } from '../store'
 import type { AgentData } from '../store'
 import AgentNode from './AgentNode'
-import { GraphDetailPanel } from './GraphDetailPanel'
+import { AgentOverlay } from './AgentOverlay'
 
 const nodeTypes = { agentNode: AgentNode }
 const proOptions = { hideAttribution: true }
@@ -17,12 +17,11 @@ const POSITIONS_KEY = 'aihub-graph-positions'
 function loadPositions(): Record<string, { x: number; y: number }> {
   try { return JSON.parse(localStorage.getItem(POSITIONS_KEY) || '{}') } catch { return {} }
 }
-
 function savePositions(pos: Record<string, { x: number; y: number }>) {
   localStorage.setItem(POSITIONS_KEY, JSON.stringify(pos))
 }
 
-export function GraphView() {
+function GraphInner() {
   const agents = useHubStore(s => s.agents)
   const connections = useHubStore(s => s.connections)
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
@@ -30,7 +29,6 @@ export function GraphView() {
   const [localEdges, setLocalEdges] = useState<Edge[]>([])
   const savedPos = useRef(loadPositions())
 
-  // Rebuild nodes/edges when agents or connections change
   useEffect(() => {
     if (!agents.length) return
 
@@ -60,7 +58,6 @@ export function GraphView() {
     }))
 
     setLocalNodes(prev => {
-      // Preserve current dragged positions
       return nodes.map(n => {
         const existing = prev.find(p => p.id === n.id)
         if (existing) return { ...n, position: existing.position, data: n.data }
@@ -84,7 +81,6 @@ export function GraphView() {
         }
         return n
       })
-      // Persist on drag end
       if (changes.some((c: any) => c.type === 'position' && c.dragging === false)) {
         savePositions(savedPos.current)
       }
@@ -96,43 +92,43 @@ export function GraphView() {
     setSelectedAgentId(null)
   }, [])
 
-  return (
-    <div className="flex-1 relative h-full flex">
-      <div className="flex-1 relative">
-        <ReactFlow
-          nodes={localNodes}
-          edges={localEdges}
-          nodeTypes={nodeTypes}
-          onNodeClick={onNodeClick}
-          onNodesChange={onNodesChange}
-          onPaneClick={onPaneClick}
-          proOptions={proOptions}
-          fitView
-          fitViewOptions={{ padding: 0.3 }}
-          minZoom={0.3}
-          maxZoom={2}
-        >
-          <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1a1a22" />
-          <Controls
-            showInteractive={false}
-            className="!bg-[#0a0a10] !border-[#1a1a22] !shadow-none [&>button]:!bg-[#0a0a10] [&>button]:!border-[#1a1a22] [&>button]:!text-[#555] [&>button:hover]:!bg-[#111118]"
-          />
-          <MiniMap
-            nodeColor={(n) => {
-              const a = n.data as AgentData
-              return ({ active: '#00ff88', idle: '#555', thinking: '#60a5fa', error: '#f87171' })[a?.status] ?? '#555'
-            }}
-            maskColor="#04040799"
-            className="!bg-[#0a0a10] !border-[#1a1a22]"
-            pannable zoomable
-          />
-        </ReactFlow>
-      </div>
+  const selectedAgent = agents.find(a => a.id === selectedAgentId) || null
 
-      {selectedAgentId && (
-        <GraphDetailPanel
-          agentId={selectedAgentId}
-          graphData={{ agents, sessions: [], connections, cronJobs: [], subagents: [], workspaces: {} } as any}
+  return (
+    <>
+      <ReactFlow
+        nodes={localNodes}
+        edges={localEdges}
+        nodeTypes={nodeTypes}
+        onNodeClick={onNodeClick}
+        onNodesChange={onNodesChange}
+        onPaneClick={onPaneClick}
+        proOptions={proOptions}
+        fitView
+        fitViewOptions={{ padding: 0.3 }}
+        minZoom={0.3}
+        maxZoom={2}
+      >
+        <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1a1a22" />
+        <Controls
+          showInteractive={false}
+          className="!bg-[#0a0a10] !border-[#1a1a22] !shadow-none [&>button]:!bg-[#0a0a10] [&>button]:!border-[#1a1a22] [&>button]:!text-[#555] [&>button:hover]:!bg-[#111118]"
+        />
+        <MiniMap
+          nodeColor={(n) => {
+            const a = n.data as AgentData
+            return ({ active: '#00ff88', idle: '#555', thinking: '#60a5fa', error: '#f87171' })[a?.status] ?? '#555'
+          }}
+          maskColor="#04040799"
+          className="!bg-[#0a0a10] !border-[#1a1a22]"
+          pannable zoomable
+        />
+      </ReactFlow>
+
+      {selectedAgent && (
+        <AgentOverlay
+          agent={selectedAgent}
+          connections={connections.filter(c => c.from === selectedAgentId || c.to === selectedAgentId)}
           onClose={() => setSelectedAgentId(null)}
         />
       )}
@@ -143,6 +139,16 @@ export function GraphView() {
           <div className="text-xs font-mono">Loading agents...</div>
         </div>
       )}
+    </>
+  )
+}
+
+export function GraphView() {
+  return (
+    <div className="flex-1 relative h-full">
+      <ReactFlowProvider>
+        <GraphInner />
+      </ReactFlowProvider>
     </div>
   )
 }
