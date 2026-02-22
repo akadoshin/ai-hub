@@ -1,13 +1,12 @@
 import { useRef, useCallback, useMemo, useState } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { OrbitControls, Html, Sphere, Line, Trail } from '@react-three/drei'
+import { OrbitControls, Html, Sphere, Line } from '@react-three/drei'
 import * as THREE from 'three'
 import { useHubStore } from '../store'
-import type { AgentData, Task, Connection } from '../store'
+import type { AgentData, Task } from '../store'
 import { Card3D } from '../ui/3d-card'
 
 // ── Palette ──
-const ACCENT = '#00ff88'
 const STATUS_COLOR: Record<string, string> = {
   active: '#00ff88',
   thinking: '#60a5fa',
@@ -394,7 +393,7 @@ function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, cron
 
         {/* Moons */}
         {crons.map((cron, i) => (
-          <Moon key={cron.id} cron={cron} index={i} total={crons.length} planetSize={size} parentColor={c} />
+          <Moon key={cron.id} cron={cron} index={i} total={crons.length} planetSize={size} />
         ))}
 
         {/* Info label */}
@@ -447,8 +446,8 @@ function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, cron
 }
 
 // ── Moon ──
-function Moon({ cron, index, total, planetSize, parentColor }: {
-  cron: Task; index: number; total: number; planetSize: number; parentColor: string
+function Moon({ cron, index, total, planetSize }: {
+  cron: Task; index: number; total: number; planetSize: number
 }) {
   const ref = useRef<THREE.Group>(null)
   const shellRef = useRef<THREE.Mesh>(null)
@@ -666,7 +665,7 @@ function SketchConnection({ from, to, color, active, label }: {
 // ── Ambient particles (subtle floating dust) ──
 function AmbientDust() {
   const ref = useRef<THREE.Points>(null)
-  const { positions, alphas } = useMemo(() => {
+  const { positions } = useMemo(() => {
     const pts: number[] = [], als: number[] = []
     for (let i = 0; i < 300; i++) {
       pts.push((Math.random() - 0.5) * 100, (Math.random() - 0.5) * 20, (Math.random() - 0.5) * 100)
@@ -730,8 +729,8 @@ function CameraController({ target, distance, enabled }: {
 }
 
 // ── Detail Panels — orbiting info cards around focused planet ──
-function DetailPanels({ agent, detail, size, color }: {
-  agent: AgentData; detail: any; size: number; color: string
+function DetailPanels({ detail, size, color }: {
+  detail: any; size: number; color: string
 }) {
   const groupRef = useRef<THREE.Group>(null)
 
@@ -939,7 +938,6 @@ function Scene() {
       {focusedAgent && focusPos && (
         <group position={focusPos}>
           <DetailPanels
-            agent={focusedAgent}
             detail={agentDetail}
             size={focusSize}
             color={STATUS_COLOR[focusedAgent.status] ?? '#00ff88'}

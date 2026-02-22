@@ -16,7 +16,15 @@ export interface AgentData extends Record<string, unknown> {
   sessionCount?: number
   activeSessions?: number
   contextTokens?: number
+  totalTokens?: number
+  percentUsed?: number
+  inputTokens?: number
+  outputTokens?: number
+  cacheRead?: number
+  cacheWrite?: number
+  remainingTokens?: number | null
   reasoningLevel?: string
+  bootstrapPending?: boolean
 }
 
 export interface Task {

@@ -1,7 +1,7 @@
 import { useState, useRef, type MouseEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, ChevronRight, ChevronDown } from 'lucide-react'
-import type { GraphData, AgentData, CronJob, SubAgent } from '../store'
+import type { GraphData, CronJob, SubAgent } from '../store'
 
 interface Props {
   agentId: string

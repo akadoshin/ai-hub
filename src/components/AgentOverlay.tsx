@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef, type MouseEvent as RMouseEvent } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  X, ChevronRight, ChevronDown, Clock, Bot, Repeat,
+  X, ChevronRight, ChevronDown, Bot, Repeat,
   ArrowUpRight, Activity, FileText, Link2, FolderOpen,
-  Loader, CheckCircle, XCircle, ExternalLink,
+  Loader,
 } from 'lucide-react'
 import type { AgentData, Connection } from '../store'
 

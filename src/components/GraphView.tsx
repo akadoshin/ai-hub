@@ -205,7 +205,6 @@ function GraphInner() {
   const connections = useHubStore(s => s.connections)
   const [viewState, setViewState] = useState<ViewState>('agents')
   const [selectedAgent, setSelectedAgent] = useState<AgentData | null>(null)
-  const [agentDetail, setAgentDetail] = useState<any>(null)
   const [localNodes, setLocalNodes] = useState<Node[]>([])
   const [localEdges, setLocalEdges] = useState<Edge[]>([])
   const savedPos = useRef(loadPositions())
@@ -343,7 +342,6 @@ function GraphInner() {
     fetch(`/api/agents/${agent.id}/detail`)
       .then(r => r.json())
       .then(detail => {
-        setAgentDetail(detail)
         const color = getAgentColor(agent)
         const agentConns = connections.filter(c => c.from === agent.id || c.to === agent.id)
         const { nodes, edges } = buildDetailNodes(agent, agentPos, detail, agentConns, color)
@@ -386,7 +384,6 @@ function GraphInner() {
     // Step 2: Smooth zoom out to show all agents
     setTimeout(() => {
       setSelectedAgent(null)
-      setAgentDetail(null)
       setViewState('agents')
       reactFlow.fitView({ padding: 0.3, duration: 600 })
     }, 100)

@@ -1,7 +1,6 @@
 import { memo, useState, useRef, useEffect, type MouseEvent } from 'react'
-import { Handle, Position, useReactFlow } from '@xyflow/react'
+import { Handle, Position } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
-import { motion, AnimatePresence } from 'framer-motion'
 import {
   FileText, ChevronDown, ChevronRight, Bot, Repeat,
   ArrowUpRight, Link2, FolderOpen, Activity, Clock,
@@ -45,11 +44,10 @@ function SpotlightNode({ children, color, className = '' }: {
 }
 
 // ── File Node ──
-function FileNodeComponent({ data, id }: NodeProps) {
+function FileNodeComponent({ data }: NodeProps) {
   const { name, content, color } = data as any
   const [open, setOpen] = useState(false)
   const hasContent = !!content
-  const reactFlow = useReactFlow()
 
   const toggle = () => {
     if (!hasContent) return

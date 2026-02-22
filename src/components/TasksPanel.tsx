@@ -3,7 +3,7 @@ import type { Task } from '../store'
 import {
   CheckCircle, XCircle, Loader, Clock, Zap, Filter,
   Trash2, StopCircle, RotateCcw, ChevronDown, ChevronRight,
-  Timer, Bot, Repeat, ArrowUpRight,
+  Bot, Repeat, ArrowUpRight,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRef, useState, useCallback, type MouseEvent } from 'react'

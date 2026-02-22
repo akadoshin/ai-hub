@@ -94,16 +94,20 @@ function AgentNode({ data, selected }: NodeProps) {
           <Metric label="LAST ACTIVE" value={agent.lastActivity} />
         </div>
 
-        {/* Context bar */}
+        {/* Context usage bar */}
         {agent.contextTokens && agent.contextTokens > 0 && (
           <div className="mt-3">
             <div className="flex justify-between text-[8px] font-mono text-[#444] mb-1">
               <span>CONTEXT</span>
-              <span>{Math.round((agent.contextTokens / 200000) * 100)}%</span>
+              <span>{agent.totalTokens ? `${(agent.totalTokens / 1000).toFixed(0)}k` : '0'} / {(agent.contextTokens / 1000).toFixed(0)}k {agent.percentUsed ? `(${agent.percentUsed}%)` : ''}</span>
             </div>
             <div className="h-1 bg-[#1a1a22] rounded-full overflow-hidden">
               <div className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${Math.min((agent.contextTokens / 200000) * 100, 100)}%`, background: cfg.color, opacity: 0.6 }} />
+                style={{
+                  width: `${Math.min(agent.percentUsed || (agent.totalTokens ? (agent.totalTokens / agent.contextTokens) * 100 : 0), 100)}%`,
+                  background: (agent.percentUsed || 0) > 80 ? '#f87171' : cfg.color,
+                  opacity: 0.6,
+                }} />
             </div>
           </div>
         )}

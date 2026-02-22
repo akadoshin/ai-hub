@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { createContext, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { cn } from "./utils";
 
 // Context to share mouse position with children
