@@ -12,12 +12,9 @@ export function TopBar({ mainView }: { mainView: MainView }) {
   return (
     <Spotlight className="shrink-0 z-10" spotlightColor="rgba(0,255,136,0.04)">
       <div className="h-14 border-b border-[#1a1a22] flex items-center px-5 gap-6" style={{ background: 'rgba(10,10,16,0.97)', backdropFilter: 'blur(12px)' }}>
-        {/* Logo 3D */}
-        <div className="flex items-center gap-2.5 mr-3">
+        {/* Logo 3D — canvas includes model + "AI HUB" text */}
+        <div className="mr-3">
           <LogoScene />
-          <span className="text-base font-extrabold text-white tracking-tight">
-            AI Hub
-          </span>
         </div>
 
         <div className="w-px h-6 bg-[#1a1a22]" />
