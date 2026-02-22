@@ -1,0 +1,20 @@
+{
+  "id": "gateway",
+  "name": "Gateway Panel",
+  "version": "1.0.0",
+  "kind": "panel",
+  "entryClient": "client/index.tsx",
+  "entryServer": "server/index.mjs",
+  "panel": {
+    "title": "Gateway",
+    "hint": "Chat y operaciones RPC",
+    "color": "#22d3ee",
+    "shortcut": "4",
+    "icon": "cpu",
+    "order": 40
+  },
+  "permissions": {
+    "network": true,
+    "fs": false
+  }
+}

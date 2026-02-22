@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Activity, RefreshCcw, Send, Clock3, Smartphone, Bot, Cpu, ShieldCheck,
 } from 'lucide-react'
-import { AnimatedTabs } from '../ui/tabs'
+import { AnimatedTabs } from '../../../src/ui/tabs'
 
 type GatewayTab = 'overview' | 'chat' | 'ops'
 

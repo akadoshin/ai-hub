@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { MeshyStatus, MeshyTask } from '../services/meshy'
-import { useMeshyStore } from '../services/meshyStore'
+import type { MeshyStatus, MeshyTask } from './services/meshy'
+import { useMeshyStore } from './services/meshyStore'
 import {
   AlertTriangle,
   Box,

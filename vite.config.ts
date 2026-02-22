@@ -12,16 +12,6 @@ export default defineConfig({
         target: 'http://127.0.0.1:3001',
         changeOrigin: true,
       },
-      '/meshy-api': {
-        target: 'https://api.meshy.ai',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/meshy-api/, ''),
-      },
-      '/meshy-assets': {
-        target: 'https://assets.meshy.ai',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/meshy-assets/, ''),
-      },
     },
   },
 })

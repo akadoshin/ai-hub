@@ -8,12 +8,40 @@ import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import WebSocket from 'ws'
 
+function parseEnvFile(filePath) {
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8')
+    const parsed = {}
+    for (const line of raw.split(/\r?\n/)) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) continue
+      const idx = trimmed.indexOf('=')
+      if (idx <= 0) continue
+      const key = trimmed.slice(0, idx).trim()
+      let value = trimmed.slice(idx + 1).trim()
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1)
+      }
+      if (key) parsed[key] = value
+    }
+    return parsed
+  } catch {
+    return {}
+  }
+}
+
+const FILE_ENV = parseEnvFile(path.resolve(process.cwd(), '.env.server'))
+const env = (key, fallback = '') => process.env[key] ?? FILE_ENV[key] ?? fallback
+
 const OPENCLAW_DIR = process.env.OPENCLAW_DIR || path.join(process.env.HOME || '', '.openclaw')
 const DEVICE_IDENTITY_PATH = process.env.OPENCLAW_DEVICE_IDENTITY || path.join(OPENCLAW_DIR, 'identity', 'device.json')
 
-const GATEWAY_URL = process.env.OPENCLAW_GATEWAY_URL || `ws://127.0.0.1:${process.env.OPENCLAW_GATEWAY_PORT || 18789}`
-const GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || ''
-const GATEWAY_PASSWORD = process.env.OPENCLAW_GATEWAY_PASSWORD || ''
+const GATEWAY_URL = env('OPENCLAW_GATEWAY_URL') || `ws://127.0.0.1:${env('OPENCLAW_GATEWAY_PORT', '18789')}`
+const GATEWAY_TOKEN = env('OPENCLAW_GATEWAY_TOKEN')
+const GATEWAY_PASSWORD = env('OPENCLAW_GATEWAY_PASSWORD')
 const PROTOCOL_VERSION = 3
 
 const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex')

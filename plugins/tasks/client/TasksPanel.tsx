@@ -1,5 +1,5 @@
-import { useHubStore } from '../store'
-import type { Task } from '../store'
+import { useHubStore } from '../../../src/store'
+import type { Task } from '../../../src/store'
 import {
   CheckCircle, XCircle, Loader, Clock, Zap, Filter,
   Trash2, StopCircle, RotateCcw, ChevronDown, ChevronRight,
@@ -304,7 +304,7 @@ function Stat({ value, label, color }: { value: number; label: string; color: st
 }
 
 // ── Main Panel ──
-export function TasksPanel({ sidebar: _sidebar }: { sidebar?: boolean }) {
+export function TasksPanel() {
   const tasks = useHubStore(s => s.tasks)
   const [filter, setFilter] = useState<FilterType>('all')
   const [showFilters, setShowFilters] = useState(false)

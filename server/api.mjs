@@ -9,6 +9,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import { watch } from 'fs'
 import { callGateway, isConnected } from './gateway-client.mjs'
+import { buildPanelCatalog, discoverPlugins, registerPluginServers } from './plugins/loader.mjs'
 
 const app = express()
 app.use(cors())
@@ -17,6 +18,19 @@ app.use(express.json())
 const OPENCLAW_DIR = process.env.OPENCLAW_DIR || path.join(process.env.HOME, '.openclaw')
 const AGENTS_DIR = path.join(OPENCLAW_DIR, 'agents')
 const PORT = 3001
+let panelPlugins = []
+
+async function initializePlugins() {
+  const { plugins } = await discoverPlugins({ logger: console })
+  panelPlugins = buildPanelCatalog(plugins)
+  await registerPluginServers({
+    plugins,
+    app,
+    context: { OPENCLAW_DIR, AGENTS_DIR },
+    logger: console,
+  })
+  console.log(`[plugins] enabled panels: ${panelPlugins.map(p => p.id).join(', ') || '(none)'}`)
+}
 
 // ── Helpers ──
 
@@ -296,6 +310,10 @@ async function getFullState() {
 }
 
 // ── REST Endpoints ──
+
+app.get('/api/plugins', (_req, res) => {
+  res.json(panelPlugins)
+})
 
 app.get('/api/agents', async (req, res) => {
   res.json(await getAgents())
@@ -984,7 +1002,16 @@ setInterval(async () => {
 
 // ── Start ──
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`[ai-hub-api] listening on :${PORT}`)
-  watchSessions()
+async function start() {
+  await initializePlugins()
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[ai-hub-api] listening on :${PORT}`)
+    watchSessions()
+  })
+}
+
+start().catch((error) => {
+  const message = error instanceof Error ? error.message : String(error)
+  console.error(`[ai-hub-api] failed to start: ${message}`)
+  process.exit(1)
 })

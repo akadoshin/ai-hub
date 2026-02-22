@@ -1,0 +1,20 @@
+{
+  "id": "tasks",
+  "name": "Tasks Panel",
+  "version": "1.0.0",
+  "kind": "panel",
+  "entryClient": "client/index.tsx",
+  "entryServer": "server/index.mjs",
+  "panel": {
+    "title": "Tasks",
+    "hint": "Cron, spawns y sesiones",
+    "color": "#f59e0b",
+    "shortcut": "3",
+    "icon": "activity",
+    "order": 30
+  },
+  "permissions": {
+    "network": false,
+    "fs": false
+  }
+}

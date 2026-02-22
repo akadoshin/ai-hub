@@ -6,21 +6,26 @@ import { initWS } from './ws'
 import { useHubStore } from './store'
 import { FlowPanelOverlay } from './components/FlowPanelOverlay'
 import type { MainView, PanelView } from './types/flows'
+import { usePanelPlugins } from './plugins/runtime'
 
 export default function App() {
   const { loadMockData } = useHubStore()
   const [mainView, setMainView] = useState<MainView>('deck')
   const [activePanel, setActivePanel] = useState<PanelView>(null)
+  const { panels, panelComponents, panelIds } = usePanelPlugins()
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     const target = e.target as HTMLElement | null
     if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
     if (e.key === '1') setMainView('deck')
     else if (e.key === '2') setMainView('graph')
-    else if (e.key === '3') setActivePanel(p => p === 'tasks' ? null : 'tasks')
-    else if (e.key === '4') setActivePanel(p => p === 'gateway' ? null : 'gateway')
-    else if (e.key === '5') setActivePanel(p => p === 'meshy' ? null : 'meshy')
-  }, [])
+    else {
+      const panel = panels.find(p => p.shortcut === e.key)
+      if (panel) {
+        setActivePanel(current => (current === panel.id ? null : panel.id))
+      }
+    }
+  }, [panels])
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown)
@@ -31,6 +36,7 @@ export default function App() {
   const prevRunningIds = useRef<Set<string>>(new Set())
   const initialLoad = useRef(true)
   const tasks = useHubStore(s => s.tasks)
+  const hasTasksPanel = panelIds.has('tasks')
   useEffect(() => {
     const runningIds = new Set(tasks.filter(t => t.status === 'running').map(t => t.id))
     if (initialLoad.current) {
@@ -40,11 +46,11 @@ export default function App() {
       return
     }
     const hasNew = [...runningIds].some(id => !prevRunningIds.current.has(id))
-    if (hasNew) {
+    if (hasNew && hasTasksPanel) {
       setActivePanel(p => p === null ? 'tasks' : p)
     }
     prevRunningIds.current = runningIds
-  }, [tasks])
+  }, [hasTasksPanel, tasks])
 
   useEffect(() => {
     initWS()
@@ -73,6 +79,8 @@ export default function App() {
           onMainViewChange={setMainView}
           activePanel={activePanel}
           onPanelChange={setActivePanel}
+          panels={panels}
+          panelComponents={panelComponents}
         />
       </div>
     </div>

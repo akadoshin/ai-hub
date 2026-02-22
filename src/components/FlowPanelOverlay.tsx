@@ -1,17 +1,17 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { X, Boxes, Network, Activity, Cpu, Sparkles } from 'lucide-react'
-import { TasksPanel } from './TasksPanel'
-import { GatewayPanel } from './GatewayPanel'
-import { MeshyPanel } from './MeshyPanel'
+import { X, Boxes, Network, Activity, Cpu, Sparkles, PanelLeft } from 'lucide-react'
 import { GraphView } from './GraphView'
 import type { MainView, PanelView } from '../types/flows'
-import { MAIN_VIEW_META, PANEL_META } from '../types/flows'
+import { MAIN_VIEW_META } from '../types/flows'
+import type { PanelComponentMap, PanelPluginMeta } from '../plugins/types'
 
 interface Props {
   mainView: MainView
   onMainViewChange: (v: MainView) => void
   activePanel: PanelView
   onPanelChange: (p: PanelView) => void
+  panels: PanelPluginMeta[]
+  panelComponents: PanelComponentMap
 }
 
 const MAIN_VIEW_ICON: Record<MainView, React.ReactNode> = {
@@ -19,14 +19,14 @@ const MAIN_VIEW_ICON: Record<MainView, React.ReactNode> = {
   graph: <Network size={16} />,
 }
 
-const PANEL_ICON: Record<Exclude<PanelView, null>, React.ReactNode> = {
-  tasks: <Activity size={16} />,
-  gateway: <Cpu size={16} />,
-  meshy: <Sparkles size={16} />,
+const PANEL_ICON: Record<string, React.ReactNode> = {
+  activity: <Activity size={16} />,
+  cpu: <Cpu size={16} />,
+  sparkles: <Sparkles size={16} />,
+  panel: <PanelLeft size={16} />,
 }
 
 const MAIN_VIEWS: MainView[] = ['deck', 'graph']
-const PANELS: Exclude<PanelView, null>[] = ['tasks', 'gateway', 'meshy']
 
 // Panel width constant — used to shrink graph area
 const PANEL_W = 442 // 430px + 12px gap
@@ -35,10 +35,21 @@ const PANEL_W = 442 // 430px + 12px gap
 const DOCK_LEFT_MD = 64
 const DOCK_LEFT_LG = 144
 
-function PanelContent({ panel }: { panel: Exclude<PanelView, null> }) {
-  if (panel === 'tasks') return <TasksPanel sidebar />
-  if (panel === 'gateway') return <GatewayPanel />
-  return <MeshyPanel embedded />
+function panelIcon(icon: string) {
+  const key = icon.toLowerCase()
+  return PANEL_ICON[key] || PANEL_ICON.panel
+}
+
+function PanelContent({ panel, panelComponents }: { panel: string; panelComponents: PanelComponentMap }) {
+  const Panel = panelComponents[panel]
+  if (!Panel) {
+    return (
+      <div className="h-full flex items-center justify-center text-[11px] text-[#7d8897] font-mono">
+        Plugin panel unavailable
+      </div>
+    )
+  }
+  return <Panel />
 }
 
 function GraphCard({ onClose }: { onClose: () => void }) {
@@ -80,11 +91,13 @@ function GraphCard({ onClose }: { onClose: () => void }) {
 function SidePanelCard({
   panel,
   meta,
+  panelComponents,
   onClose,
   fullHeight,
 }: {
-  panel: Exclude<PanelView, null>
-  meta: (typeof PANEL_META)[Exclude<PanelView, null>]
+  panel: string
+  meta: PanelPluginMeta
+  panelComponents: PanelComponentMap
   onClose: () => void
   fullHeight: boolean
 }) {
@@ -114,7 +127,7 @@ function SidePanelCard({
         }}
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <span style={{ color: isMeshy ? '#c5f955' : meta.color }}>{PANEL_ICON[panel]}</span>
+          <span style={{ color: isMeshy ? '#c5f955' : meta.color }}>{panelIcon(meta.icon)}</span>
           <div className="min-w-0">
             <div className="text-[11px] font-semibold text-[#ddddee] tracking-wide truncate">{meta.label}</div>
             <div className="text-[9px] font-mono truncate" style={{ color: isMeshy ? '#8a9580' : '#555568' }}>{meta.hint}</div>
@@ -144,14 +157,14 @@ function SidePanelCard({
         }
         style={fullHeight ? undefined : { maxHeight: 'calc(100vh - 160px)' }}
       >
-        <PanelContent panel={panel} />
+        <PanelContent panel={panel} panelComponents={panelComponents} />
       </div>
     </div>
   )
 }
 
-export function FlowPanelOverlay({ mainView, onMainViewChange, activePanel, onPanelChange }: Props) {
-  const panelMeta = activePanel ? PANEL_META[activePanel] : null
+export function FlowPanelOverlay({ mainView, onMainViewChange, activePanel, onPanelChange, panels, panelComponents }: Props) {
+  const panelMeta = activePanel ? panels.find(p => p.id === activePanel) || null : null
   // Sidepanel gets full height when graph is also open
   const panelFullHeight = mainView === 'graph' && activePanel !== null
 
@@ -177,19 +190,18 @@ export function FlowPanelOverlay({ mainView, onMainViewChange, activePanel, onPa
           )
         })}
         <div className="w-px h-5 bg-[#1a1a22] mx-0.5" />
-        {PANELS.map((p) => {
-          const meta = PANEL_META[p]
-          const active = p === activePanel
+        {panels.map((p) => {
+          const active = p.id === activePanel
           return (
-            <button key={p} onClick={() => onPanelChange(active ? null : p)}
+            <button key={p.id} onClick={() => onPanelChange(active ? null : p.id)}
               className="rounded-xl px-2.5 py-1.5 text-[9px] font-semibold transition-all"
               style={{
-                border: `1px solid ${active ? `${meta.color}60` : '#222230'}`,
-                background: active ? `${meta.color}18` : 'transparent',
-                color: active ? meta.color : '#777790',
+                border: `1px solid ${active ? `${p.color}60` : '#222230'}`,
+                background: active ? `${p.color}18` : 'transparent',
+                color: active ? p.color : '#777790',
               }}
             >
-              {meta.label}
+              {p.label}
             </button>
           )
         })}
@@ -206,7 +218,7 @@ export function FlowPanelOverlay({ mainView, onMainViewChange, activePanel, onPa
             transition={{ duration: 0.2, ease: 'easeOut' }}
             className="md:hidden absolute top-3 bottom-[64px] left-3 right-3 pointer-events-auto"
           >
-            <SidePanelCard panel={activePanel} meta={panelMeta} fullHeight onClose={() => onPanelChange(null)} />
+            <SidePanelCard panel={activePanel} meta={panelMeta} panelComponents={panelComponents} fullHeight onClose={() => onPanelChange(null)} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -256,23 +268,22 @@ export function FlowPanelOverlay({ mainView, onMainViewChange, activePanel, onPa
 
           <div className="h-px bg-[#1a1a22] mx-2" />
 
-          {PANELS.map((p) => {
-            const meta = PANEL_META[p]
-            const active = p === activePanel
+          {panels.map((p) => {
+            const active = p.id === activePanel
             return (
-              <button key={p} onClick={() => onPanelChange(active ? null : p)}
+              <button key={p.id} onClick={() => onPanelChange(active ? null : p.id)}
                 className="group flex items-center gap-2 rounded-xl px-3 py-2 text-left transition-all"
                 style={{
-                  border: `1px solid ${active ? `${meta.color}60` : '#222230'}`,
-                  background: active ? `${meta.color}18` : '#0d0d16f0',
-                  color: active ? meta.color : '#777790',
-                  boxShadow: active ? `0 0 18px ${meta.color}20` : 'none',
+                  border: `1px solid ${active ? `${p.color}60` : '#222230'}`,
+                  background: active ? `${p.color}18` : '#0d0d16f0',
+                  color: active ? p.color : '#777790',
+                  boxShadow: active ? `0 0 18px ${p.color}20` : 'none',
                 }}
-                title={`${meta.label} (${meta.shortcut}) — ${meta.hint}`}
+                title={`${p.label}${p.shortcut ? ` (${p.shortcut})` : ''}${p.hint ? ` — ${p.hint}` : ''}`}
               >
-                <span className="shrink-0">{PANEL_ICON[p]}</span>
-                <span className="hidden lg:block text-[10px] font-semibold tracking-wide">{meta.label}</span>
-                <span className="hidden xl:block ml-auto text-[9px] text-[#555568] font-mono">{meta.shortcut}</span>
+                <span className="shrink-0">{panelIcon(p.icon)}</span>
+                <span className="hidden lg:block text-[10px] font-semibold tracking-wide">{p.label}</span>
+                <span className="hidden xl:block ml-auto text-[9px] text-[#555568] font-mono">{p.shortcut}</span>
               </button>
             )
           })}
@@ -316,6 +327,7 @@ export function FlowPanelOverlay({ mainView, onMainViewChange, activePanel, onPa
             <SidePanelCard
               panel={activePanel}
               meta={panelMeta}
+              panelComponents={panelComponents}
               fullHeight={panelFullHeight}
               onClose={() => onPanelChange(null)}
             />

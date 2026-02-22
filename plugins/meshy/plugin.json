@@ -1,0 +1,20 @@
+{
+  "id": "meshy",
+  "name": "Meshy Panel",
+  "version": "1.0.0",
+  "kind": "panel",
+  "entryClient": "client/index.tsx",
+  "entryServer": "server/index.mjs",
+  "panel": {
+    "title": "Meshy",
+    "hint": "Generacion de assets 3D",
+    "color": "#f472b6",
+    "shortcut": "5",
+    "icon": "sparkles",
+    "order": 50
+  },
+  "permissions": {
+    "network": true,
+    "fs": false
+  }
+}
