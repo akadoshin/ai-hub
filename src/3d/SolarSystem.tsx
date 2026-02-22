@@ -1,4 +1,4 @@
-import { useRef, useCallback, useMemo, useState, useEffect } from 'react'
+import { useRef, useCallback, useMemo, useState, useEffect, type ReactNode } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, Html, Sphere, Line } from '@react-three/drei'
 import * as THREE from 'three'
@@ -1537,6 +1537,195 @@ export function HubScene({
 // ════════════════════════════════════════════
 // UI COMPONENTS
 // ════════════════════════════════════════════
+
+function CometCard({
+  color,
+  width,
+  children,
+}: {
+  color: string
+  width?: number
+  children: ReactNode
+}) {
+  return (
+    <div
+      style={{
+        position: 'relative',
+        overflow: 'hidden',
+        width,
+        textAlign: 'left',
+        background: 'linear-gradient(165deg, #070b14f4, #05070ef4)',
+        border: `1px solid ${color}3a`,
+        borderRadius: 10,
+        padding: '9px 11px',
+        boxShadow: `0 10px 30px rgba(0, 0, 0, 0.46), 0 0 24px ${color}14`,
+        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+        backdropFilter: 'blur(12px)',
+      }}
+    >
+      <motion.div
+        initial={{ x: -150, opacity: 0 }}
+        animate={{ x: 320, opacity: [0, 0.8, 0] }}
+        transition={{ duration: 2.8, repeat: Infinity, repeatDelay: 0.9, ease: 'linear' }}
+        style={{
+          position: 'absolute',
+          top: 8,
+          left: -40,
+          width: 120,
+          height: 1.4,
+          borderRadius: 999,
+          background: `linear-gradient(90deg, transparent, ${color}, transparent)`,
+          filter: 'blur(0.4px)',
+          transform: 'rotate(-14deg)',
+          opacity: 0.45,
+          pointerEvents: 'none',
+        }}
+      />
+      <motion.div
+        initial={{ x: -120, opacity: 0 }}
+        animate={{ x: 280, opacity: [0, 0.55, 0] }}
+        transition={{ duration: 3.3, repeat: Infinity, repeatDelay: 1.4, ease: 'linear', delay: 0.6 }}
+        style={{
+          position: 'absolute',
+          bottom: 6,
+          left: -32,
+          width: 86,
+          height: 1,
+          borderRadius: 999,
+          background: `linear-gradient(90deg, transparent, ${color}, transparent)`,
+          filter: 'blur(0.3px)',
+          transform: 'rotate(-11deg)',
+          opacity: 0.35,
+          pointerEvents: 'none',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          background: `radial-gradient(circle at 18% 16%, ${color}18, transparent 44%)`,
+        }}
+      />
+      <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
+    </div>
+  )
+}
+
+function FocusedAgentPanel({
+  agent,
+  detail,
+  loading,
+}: {
+  agent: AgentData | null
+  detail: AgentDetail | null
+  loading: boolean
+}) {
+  const open = !!agent
+  const color = agent ? (STATUS_COLOR[agent.status] ?? '#00ff88') : '#00ff88'
+  const model = agent?.model?.replace('anthropic/', '').replace('claude-', '') || 'unknown'
+  const files = detail ? Object.entries(detail.files).filter(([, v]) => !!v).map(([k]) => k.toUpperCase()) : []
+
+  return (
+    <AnimatePresence>
+      {open && agent && (
+        <motion.div
+          initial={{ opacity: 0, x: 26 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 26 }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
+          style={{
+            position: 'absolute',
+            top: 62,
+            right: 14,
+            zIndex: 78,
+            width: 330,
+            maxWidth: 'min(92vw, 330px)',
+            pointerEvents: 'auto',
+          }}
+        >
+          <CometCard color={color}>
+            <div style={{ fontSize: 9, color, fontWeight: 700, letterSpacing: '0.1em', marginBottom: 5 }}>
+              FOCUSED PLANET
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#eef4ff', marginBottom: 4 }}>
+              {agent.label}
+            </div>
+            <StatusBadge status={agent.status} color={color} active={agent.status === 'active' || agent.status === 'thinking'} />
+
+            <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 14px' }}>
+              <Stat label="MODEL" value={model} />
+              <Stat label="LAST" value={agent.lastActivity} />
+              <Stat label="SESSIONS" value={`${agent.activeSessions || 0}/${agent.sessionCount || 0}`} />
+              <Stat label="MESSAGES" value={`${agent.messageCount || 0}`} />
+            </div>
+
+            <div
+              style={{
+                marginTop: 8,
+                borderTop: `1px solid ${color}18`,
+                paddingTop: 7,
+                maxHeight: 280,
+                overflowY: 'auto',
+                scrollbarWidth: 'thin',
+                scrollbarColor: `${color}33 transparent`,
+              }}
+            >
+              {loading ? (
+                <div style={{ fontSize: 9, color: '#8ea0b6' }}>Loading details...</div>
+              ) : (
+                <>
+                  {detail?.stats && (
+                    <div style={{ marginBottom: 7 }}>
+                      <div style={{ fontSize: 8, color: '#5f7187', letterSpacing: '0.08em', marginBottom: 2 }}>RUNTIME</div>
+                      <Detail label="Crons" value={`${detail.stats.cronCount}`} />
+                      <Detail label="Spawns" value={`${detail.stats.spawnCount}`} />
+                      <Detail label="Workspace files" value={`${detail.stats.fileCount}`} />
+                    </div>
+                  )}
+
+                  {files.length > 0 && (
+                    <div style={{ marginBottom: 7 }}>
+                      <div style={{ fontSize: 8, color: '#5f7187', letterSpacing: '0.08em', marginBottom: 4 }}>AVAILABLE FILES</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {files.slice(0, 7).map((f) => (
+                          <span
+                            key={f}
+                            style={{
+                              fontSize: 8,
+                              color: '#c6d3e6',
+                              border: `1px solid ${color}28`,
+                              borderRadius: 999,
+                              padding: '2px 6px',
+                              background: '#0a1220c0',
+                            }}
+                          >
+                            {f}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {detail?.workspace && <Detail label="Workspace" value={detail.workspace} />}
+                  {detail?.sessions?.[0] && <Detail label="Latest session" value={detail.sessions[0].label} />}
+                  {detail?.recentMemories?.[0]?.preview && (
+                    <div style={{ marginTop: 7 }}>
+                      <div style={{ fontSize: 8, color: '#5f7187', letterSpacing: '0.08em', marginBottom: 3 }}>RECENT MEMORY</div>
+                      <div style={{ fontSize: 8, color: '#a8b8cb', lineHeight: 1.45 }}>
+                        {detail.recentMemories[0].preview.slice(0, 220)}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </CometCard>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
 
 function StatusBadge({ status, color, active }: { status: string; color: string; active: boolean }) {
   return (

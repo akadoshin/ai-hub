@@ -145,19 +145,35 @@ export function FlowPanelOverlay({ mainView, onMainViewChange, activePanel, onPa
             transition={{ duration: 0.2, ease: 'easeOut' }}
             className="absolute top-[76px] bottom-3 left-3 md:left-[13%] pointer-events-auto"
             style={{
-              right: activePanel ? '442px' : '12px',
+              right: activePanel ? '450px' : '12px',
               transition: 'right 0.25s ease',
             }}
           >
             <div
-              className="h-full rounded-2xl overflow-hidden backdrop-blur-xl"
+              className="h-full rounded-2xl overflow-hidden backdrop-blur-xl flex flex-col"
               style={{
                 border: `1px solid ${MAIN_VIEW_META.graph.color}25`,
                 background: 'linear-gradient(165deg, rgba(10,10,16,0.94), rgba(6,6,12,0.94))',
                 boxShadow: '0 14px 70px rgba(0,0,0,0.45)',
               }}
             >
-              <GraphView />
+              {/* Header with close button */}
+              <div className="h-10 px-3 border-b border-[#1a1a22] flex items-center justify-between bg-[#0a0a10cc] shrink-0">
+                <div className="flex items-center gap-2">
+                  <Network size={12} className="text-[#60a5fa]" />
+                  <span className="text-[10px] font-semibold text-[#aaaacc] tracking-wide">Agent Graph</span>
+                </div>
+                <button
+                  onClick={() => onMainViewChange('deck')}
+                  className="w-7 h-7 rounded-lg border border-[#222232] bg-[#0d0d1acc] text-[#888898] hover:text-white hover:border-[#333345] transition-colors flex items-center justify-center"
+                  title="Cerrar — volver al Deck"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <GraphView />
+              </div>
             </div>
           </motion.div>
         )}
