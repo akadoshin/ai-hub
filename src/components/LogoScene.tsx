@@ -1,57 +1,74 @@
 /**
- * LogoScene — R3F canvas with the Meshy claw model + "AI HUB" Text3D.
- * Replaces both the icon square and the HTML "AI Hub" label in TopBar.
+ * LogoScene — R3F canvas: Meshy AI-core gem (left) + extruded "AI HUB" text (right)
+ * Style: dark gunmetal + neon green — matches the app palette
  */
 import { Suspense, useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { useGLTF, Environment, Text3D, Center } from '@react-three/drei'
 import type { Group } from 'three'
+import * as THREE from 'three'
 
-// ---------- Claw model (left side, slow rotation) ----------
-function ClawModel() {
+// ── Gem model — slow Y rotation + gentle float ──────────────────────────
+function GemModel() {
   const { scene } = useGLTF('/models/hub-logo.glb')
   const ref = useRef<Group>(null)
+  const t = useRef(0)
 
   useFrame((_, delta) => {
-    if (ref.current) ref.current.rotation.y += delta * 0.55
+    t.current += delta
+    if (ref.current) {
+      ref.current.rotation.y += delta * 0.5
+      ref.current.position.y = Math.sin(t.current * 0.9) * 0.06
+    }
   })
 
   return (
-    <group ref={ref} position={[-1.8, 0, 0]} scale={1.0}>
+    <group ref={ref} position={[-1.6, 0, 0]} scale={1.05}>
       <primitive object={scene} />
     </group>
   )
 }
 
-// ---------- "AI HUB" extruded text (right side, subtle bob) ----------
+// ── Pulsing green point light behind the gem ─────────────────────────────
+function PulseLight() {
+  const ref = useRef<THREE.PointLight>(null)
+  useFrame(({ clock }) => {
+    if (ref.current) {
+      ref.current.intensity = 1.0 + Math.sin(clock.elapsedTime * 2.2) * 0.5
+    }
+  })
+  return <pointLight ref={ref} position={[-1.6, 0, 1.5]} color="#00ff88" intensity={1.2} distance={6} />
+}
+
+// ── "AI HUB" — extruded, neon-green metallic ─────────────────────────────
 function HubText() {
   const ref = useRef<Group>(null)
   useFrame(({ clock }) => {
     if (ref.current) {
-      ref.current.position.y = Math.sin(clock.elapsedTime * 0.8) * 0.04
+      ref.current.position.y = Math.sin(clock.elapsedTime * 0.7 + 1) * 0.04
     }
   })
 
   return (
-    <group ref={ref} position={[0.5, 0, 0]}>
+    <group ref={ref} position={[0.55, 0, 0]}>
       <Center>
         <Text3D
           font="/fonts/helvetiker_bold.json"
-          size={0.52}
-          depth={0.14}
-          curveSegments={12}
+          size={0.50}
+          depth={0.13}
+          curveSegments={10}
           bevelEnabled
-          bevelThickness={0.03}
-          bevelSize={0.025}
+          bevelThickness={0.025}
+          bevelSize={0.02}
           bevelSegments={4}
         >
           AI HUB
           <meshStandardMaterial
             color="#00ff88"
-            metalness={0.75}
-            roughness={0.18}
-            emissive="#00cc66"
-            emissiveIntensity={0.35}
+            metalness={0.8}
+            roughness={0.15}
+            emissive="#00dd66"
+            emissiveIntensity={0.4}
           />
         </Text3D>
       </Center>
@@ -59,27 +76,26 @@ function HubText() {
   )
 }
 
-// ---------- Full scene ----------
+// ── Canvas ────────────────────────────────────────────────────────────────
 export function LogoScene() {
   return (
-    // width covers model + text; height matches TopBar h-14 = 56px minus padding
     <div
-      style={{ width: 210, height: 46 }}
+      style={{ width: 215, height: 48 }}
       className="shrink-0 overflow-hidden"
     >
       <Canvas
-        camera={{ position: [0, 0, 5], fov: 38 }}
+        // Slight high-angle to show gem facets
+        camera={{ position: [0, 0.6, 5.2], fov: 37 }}
         gl={{ antialias: true, alpha: true }}
         style={{ background: 'transparent' }}
       >
-        {/* Lighting */}
-        <ambientLight intensity={0.5} />
-        <directionalLight position={[4, 5, 4]} intensity={1.8} color="#ffffff" />
-        <pointLight position={[-3, 1, 3]} intensity={1.2} color="#00ff88" />
-        <pointLight position={[3, -1, 2]} intensity={0.5} color="#60a5fa" />
+        <ambientLight intensity={0.45} />
+        <directionalLight position={[3, 5, 4]} intensity={1.6} color="#ffffff" />
+        <directionalLight position={[-3, -2, 2]} intensity={0.4} color="#60a5fa" />
 
         <Suspense fallback={null}>
-          <ClawModel />
+          <GemModel />
+          <PulseLight />
           <HubText />
           <Environment preset="city" />
         </Suspense>
