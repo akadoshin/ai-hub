@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { X, Boxes, Network, Activity, Cpu, Sparkles } from 'lucide-react'
+import { useRef, useState, useEffect } from 'react'
 import { TasksPanel } from './TasksPanel'
 import { GatewayPanel } from './GatewayPanel'
 import { MeshyPanel } from './MeshyPanel'
@@ -42,6 +43,19 @@ function PanelContent({ panel }: { panel: Exclude<PanelView, null> }) {
 
 export function FlowPanelOverlay({ mainView, onMainViewChange, activePanel, onPanelChange }: Props) {
   const panelMeta = activePanel ? PANEL_META[activePanel] : null
+
+  // Measure dock height so windows start below the last menu button
+  const dockRef = useRef<HTMLDivElement>(null)
+  const [panelTop, setPanelTop] = useState(68)
+  useEffect(() => {
+    const el = dockRef.current
+    if (!el) return
+    const update = () => setPanelTop(68 + (el.offsetHeight ?? 0) + 12)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   return (
     <div className="absolute inset-0 pointer-events-none z-40">
@@ -96,11 +110,12 @@ export function FlowPanelOverlay({ mainView, onMainViewChange, activePanel, onPa
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98, y: 8 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="absolute top-[68px] bottom-3 pointer-events-auto"
+            className="absolute bottom-3 pointer-events-auto"
             style={{
+              top: panelTop,
               left: DOCK_LEFT_MD,
               right: activePanel ? 454 : 12,
-              transition: 'right 0.25s ease, left 0.25s ease',
+              transition: 'right 0.25s ease, left 0.25s ease, top 0.25s ease',
             }}
           >
             <div
@@ -141,7 +156,8 @@ export function FlowPanelOverlay({ mainView, onMainViewChange, activePanel, onPa
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.98 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="absolute top-[68px] bottom-3 right-3 w-[min(96vw,430px)] pointer-events-auto"
+            className="absolute bottom-3 right-3 w-[min(96vw,430px)] pointer-events-auto"
+            style={{ top: panelTop }}
           >
             <div
               className="h-full rounded-2xl overflow-hidden backdrop-blur-xl"
@@ -177,6 +193,7 @@ export function FlowPanelOverlay({ mainView, onMainViewChange, activePanel, onPa
 
       {/* ── Left Dock — rendered LAST = always on top of graph/sidepanels ── */}
       <div
+        ref={dockRef}
         className="absolute left-3 top-[68px] hidden md:flex flex-col gap-3 pointer-events-auto"
         style={{ zIndex: 10 }}
       >
