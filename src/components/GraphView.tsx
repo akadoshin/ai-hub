@@ -3,7 +3,7 @@ import {
   ReactFlow, ReactFlowProvider, Background, Controls, MiniMap,
   BackgroundVariant, useReactFlow,
 } from '@xyflow/react'
-import type { Node, Edge, NodeMouseHandler } from '@xyflow/react'
+import type { Node, Edge, NodeMouseHandler, FinalConnectionState } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useHubStore } from '../store'
 import type { AgentData, Connection } from '../store'
@@ -12,6 +12,8 @@ import { useOnRelayout } from './DetailNodes'
 import { detailNodeTypes } from './DetailNodes'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowLeft } from 'lucide-react'
+import { GraphCreator } from './GraphCreator'
+import type { CreatorState } from './GraphCreator'
 
 const nodeTypes = { agentNode: AgentNode, ...detailNodeTypes }
 const proOptions = { hideAttribution: true }
@@ -209,6 +211,38 @@ function GraphInner() {
   const [localEdges, setLocalEdges] = useState<Edge[]>([])
   const savedPos = useRef(loadPositions())
   const reactFlow = useReactFlow()
+
+  // ── Graph Creator (drag-to-create) ──────────────────────────────────────
+  const [creatorState, setCreatorState] = useState<CreatorState | null>(null)
+  const connectSourceRef = useRef<string | null>(null)
+
+  const onConnectStart = useCallback((_: unknown, { nodeId }: { nodeId: string | null }) => {
+    connectSourceRef.current = nodeId
+  }, [])
+
+  const onConnectEnd = useCallback((event: MouseEvent | TouchEvent, connectionState: FinalConnectionState) => {
+    // Only show creator when drag didn't land on a valid handle (no connection made)
+    if (connectionState.isValid) return
+    // Only in agents view, not detail
+    if (viewState !== 'agents') return
+
+    const sourceId = connectSourceRef.current
+    if (!sourceId) return
+    const sourceAgent = agents.find(a => a.id === sourceId)
+    if (!sourceAgent) return
+
+    // Did the user drop on another agent node body (not a handle)?
+    const targetId = connectionState.endHandle?.nodeId ?? null
+    const targetAgent = targetId && targetId !== sourceId
+      ? agents.find(a => a.id === targetId) ?? null
+      : null
+
+    const clientX = 'clientX' in event ? event.clientX : event.touches[0]?.clientX ?? 0
+    const clientY = 'clientY' in event ? event.clientY : event.touches[0]?.clientY ?? 0
+
+    setCreatorState({ position: { x: clientX, y: clientY }, sourceAgent, targetAgent })
+  }, [viewState, agents])
+  // ────────────────────────────────────────────────────────────────────────
 
   // Build agent-level graph
   const buildAgentGraph = useCallback(() => {
@@ -450,6 +484,8 @@ function GraphInner() {
         nodeTypes={nodeTypes}
         onNodeClick={onNodeClick}
         onNodesChange={onNodesChange}
+        onConnectStart={onConnectStart}
+        onConnectEnd={onConnectEnd}
         proOptions={proOptions}
         fitView={viewState === 'agents'}
         fitViewOptions={{ padding: 0.3 }}
@@ -460,6 +496,7 @@ function GraphInner() {
         selectionKeyCode="Shift"
         multiSelectionKeyCode="Shift"
         deleteKeyCode={null}
+        connectOnClick={false}
       >
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1a1a22" />
         <Controls
@@ -531,6 +568,18 @@ function GraphInner() {
         <div className="absolute inset-0 flex flex-col items-center justify-center text-[#333] pointer-events-none">
           <div className="text-4xl mb-3">⏳</div>
           <div className="text-xs font-mono">Loading agents...</div>
+        </div>
+      )}
+
+      {/* Drag-to-create popover */}
+      <GraphCreator state={creatorState} onClose={() => setCreatorState(null)} />
+
+      {/* Hint: drag from handle */}
+      {viewState === 'agents' && localNodes.length > 0 && !creatorState && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-none">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[8px] font-mono text-[#2a2a33] bg-[#08080f80]">
+            drag from a node handle to create
+          </div>
         </div>
       )}
     </div>

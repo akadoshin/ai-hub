@@ -1,9 +1,12 @@
 import { useHubStore } from '../store'
 import { Bot, Activity, MessageSquare, Link2, Wifi, WifiOff } from 'lucide-react'
 import { Spotlight } from '../ui/spotlight'
+import type { FlowView } from '../types/flows'
+import { FLOW_META } from '../types/flows'
 
-export function TopBar() {
+export function TopBar({ activeFlow }: { activeFlow: FlowView }) {
   const { connected, stats } = useHubStore()
+  const flow = FLOW_META[activeFlow]
 
   return (
     <Spotlight className="shrink-0 z-10" spotlightColor="rgba(0,255,136,0.04)">
@@ -27,6 +30,16 @@ export function TopBar() {
         <Stat icon={<Link2 size={14} />} label="Links" value={stats.activeConnections} accent />
 
         <div className="flex-1" />
+
+        {/* Active flow */}
+        <div
+          className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full border"
+          style={{ borderColor: `${flow.color}25`, background: `${flow.color}0d` }}
+        >
+          <span className="text-[9px] text-[#5c6578] uppercase tracking-wider font-mono">Flow</span>
+          <span className="text-[11px] font-semibold" style={{ color: flow.color }}>{flow.shortLabel}</span>
+          <span className="text-[9px] text-[#6b7280] font-mono">[{flow.shortcut}]</span>
+        </div>
 
         {/* Connection status */}
         <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${

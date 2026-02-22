@@ -1,7 +1,15 @@
 import { useHubStore } from '../store'
 import { BackgroundBeams } from '../ui/background-beams'
+import type { FlowView } from '../types/flows'
+import { FLOW_META, FLOW_ORDER } from '../types/flows'
 
-export function SceneOverlay() {
+export function SceneOverlay({
+  activeFlow,
+  onFlowChange,
+}: {
+  activeFlow: FlowView
+  onFlowChange: (flow: FlowView) => void
+}) {
   const { agents, tasks, connected } = useHubStore()
   const active = agents.filter(a => a.status === 'active' || a.status === 'thinking').length
   const crons = tasks.filter(t => t.type === 'cron').length
@@ -11,6 +19,29 @@ export function SceneOverlay() {
     <div className="absolute inset-0 pointer-events-none z-5">
       <BackgroundBeams className="opacity-50" />
 
+      {/* Top-center: flow quick switch */}
+      <div className="absolute top-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full border border-[#1a1f2a] bg-[#05070bcc] px-2 py-1.5 backdrop-blur-md pointer-events-auto">
+        {FLOW_ORDER.map((flow) => {
+          const meta = FLOW_META[flow]
+          const selected = flow === activeFlow
+          return (
+            <button
+              key={flow}
+              onClick={() => onFlowChange(flow)}
+              className="rounded-full px-2 py-1 text-[9px] font-semibold tracking-wide transition-colors"
+              style={{
+                color: selected ? meta.color : '#6f7a8f',
+                border: `1px solid ${selected ? `${meta.color}55` : '#1b2230'}`,
+                background: selected ? `${meta.color}16` : '#090d14',
+              }}
+              title={`${meta.label} (${meta.shortcut})`}
+            >
+              {meta.shortLabel}
+            </button>
+          )
+        })}
+      </div>
+
       {/* Bottom-left: legend */}
       <div className="absolute bottom-3.5 left-3.5 flex flex-col gap-1 bg-[#050508]/80 backdrop-blur-md rounded-lg px-2.5 py-2 border border-[#1a1a22]">
         <div className="text-[8px] text-[#444] font-bold tracking-wider mb-0.5">SYSTEM MAP</div>
@@ -18,10 +49,11 @@ export function SceneOverlay() {
         <Legend emoji="🪐" label="Planet — persistent agent" />
         <Legend emoji="🌙" label="Moon — cron task" />
         <Legend emoji="☄" label="Comet — worker/spawn" />
+        <Legend emoji="◆" label="Portal — AI flow control" />
       </div>
 
       {/* Top-right: status pills */}
-      <div className="absolute top-2.5 right-[292px] flex gap-1.5">
+      <div className="absolute top-2.5 right-3 flex gap-1.5">
         <Pill color={connected ? '#00ff88' : '#f87171'} label={connected ? 'LIVE' : 'OFFLINE'} pulse={connected} />
         {active > 0 && <Pill color="#00ff88" label={`${active} active`} />}
         <Pill color="#555" label={`${crons} moons`} />

@@ -1,25 +1,15 @@
 import { useEffect, useState } from 'react'
 import { TopBar } from './components/TopBar'
-import { GraphView } from './components/GraphView'
-import { TasksPanel } from './components/TasksPanel'
-import { GatewayPanel } from './components/GatewayPanel'
 import { SceneOverlay } from './components/SceneOverlay'
 import { HubScene } from './3d/SolarSystem'
 import { initWS } from './ws'
 import { useHubStore } from './store'
-import { Box, GitBranch } from 'lucide-react'
-import { AnimatedTabs } from './ui/tabs'
-
-type ViewMode = '3d' | 'graph'
-
-const viewTabs = [
-  { id: '3d', label: '3D Simulation', icon: <Box size={11} /> },
-  { id: 'graph', label: 'Agent Graph', icon: <GitBranch size={11} /> },
-]
+import { FlowPanelOverlay } from './components/FlowPanelOverlay'
+import type { FlowView } from './types/flows'
 
 export default function App() {
   const { loadMockData } = useHubStore()
-  const [view, setView] = useState<ViewMode>('graph')
+  const [activeFlow, setActiveFlow] = useState<FlowView>('overview')
 
   useEffect(() => {
     initWS()
@@ -28,42 +18,16 @@ export default function App() {
       if (agents.length === 0) loadMockData()
     }, 3000)
     return () => clearTimeout(timeout)
-  }, [])
+  }, [loadMockData])
 
   return (
-    <div className="flex flex-col h-screen bg-[#040407]">
-      <TopBar />
+    <div className="flex h-screen flex-col bg-[#03050a]">
+      <TopBar activeFlow={activeFlow} />
 
-      {/* View tabs */}
-      <div className="flex items-center px-4 bg-[#080810] border-b border-[#1a1a22] h-[38px] shrink-0">
-        <AnimatedTabs
-          tabs={viewTabs}
-          activeTab={view}
-          onChange={(id) => setView(id as ViewMode)}
-        />
-      </div>
-
-      <div className="flex flex-1 overflow-hidden">
-        {/* Main view */}
-        <div className="flex-1 relative overflow-hidden">
-          {view === '3d' && (
-            <>
-              <HubScene />
-              <SceneOverlay />
-            </>
-          )}
-          {view === 'graph' && <GraphView />}
-        </div>
-
-        {/* Right sidebar */}
-        <div className="w-[300px] flex flex-col bg-[#080810] border-l border-[#1a1a22] overflow-hidden shrink-0">
-          <div className="h-[52%] min-h-[250px] overflow-hidden flex flex-col">
-            <TasksPanel sidebar />
-          </div>
-          <div className="h-[48%] min-h-[260px] overflow-hidden flex flex-col">
-            <GatewayPanel />
-          </div>
-        </div>
+      <div className="relative flex-1 overflow-hidden">
+        <HubScene activeFlow={activeFlow} onFlowChange={setActiveFlow} />
+        <SceneOverlay activeFlow={activeFlow} onFlowChange={setActiveFlow} />
+        <FlowPanelOverlay activeFlow={activeFlow} onFlowChange={setActiveFlow} />
       </div>
     </div>
   )

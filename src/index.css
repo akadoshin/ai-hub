@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -13,17 +14,31 @@
   --card: #0a0a10;
   --border: #1a1a22;
   --text-muted: #555;
+  --bg-l1: #03050a;
+  --bg-l2: #0a1020;
+  --bg-l3: #071520;
 }
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  background: #040407;
+  background:
+    radial-gradient(1200px 650px at 12% -20%, #18334a55 0%, transparent 55%),
+    radial-gradient(900px 500px at 95% 10%, #0b4f3b44 0%, transparent 50%),
+    linear-gradient(165deg, var(--bg-l1), #04060c 55%, #03050a);
   color: #eee;
-  font-family: 'Inter', 'SF Pro Display', system-ui, -apple-system, sans-serif;
+  font-family: 'Space Grotesk', 'Avenir Next', 'Segoe UI', sans-serif;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  isolation: isolate;
 }
 
 /* ReactFlow overrides for dark theme */

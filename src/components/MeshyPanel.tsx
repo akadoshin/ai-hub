@@ -12,7 +12,7 @@ const PRESETS = [
 
 const ART_STYLES = ['pbr', 'realistic', 'cartoon', 'low-poly', 'sculpture']
 
-export function MeshyPanel() {
+export function MeshyPanel({ embedded = false }: { embedded?: boolean }) {
   const { tasks, generating, error, generate, fetchHistory, selectModel, clearError } = useMeshyStore()
   const [prompt, setPrompt] = useState('')
   const [artStyle, setArtStyle] = useState('pbr')
@@ -27,12 +27,15 @@ export function MeshyPanel() {
   }
 
   return (
-    <div className="bg-[#080810] border-t border-[#1a1a22] shrink-0">
+    <div className={embedded ? 'h-full bg-[#080810] flex flex-col' : 'bg-[#080810] border-t border-[#1a1a22] shrink-0'}>
       {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-2 px-4 py-2.5 bg-transparent border-none cursor-pointer text-[#eee] hover:bg-[#0a0a14] transition-colors"
-        style={{ borderBottom: expanded ? '1px solid #1a1a22' : 'none' }}
+        style={{
+          borderBottom: expanded ? '1px solid #1a1a22' : 'none',
+          flexShrink: 0,
+        }}
       >
         <Box size={14} className="text-[#00ff88]" />
         <span className="text-[11px] font-bold text-[#555] tracking-widest uppercase flex-1 text-left">
@@ -42,7 +45,7 @@ export function MeshyPanel() {
       </button>
 
       {expanded && (
-        <div className="p-3">
+        <div className={embedded ? 'p-3 overflow-y-auto flex-1' : 'p-3'}>
           {error && (
             <div className="bg-[#f8717115] border border-[#f8717130] rounded-md px-2.5 py-1.5 text-[11px] text-[#f87171] mb-2 flex justify-between items-center">
               <span>{error}</span>

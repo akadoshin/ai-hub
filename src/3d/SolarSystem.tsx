@@ -1,10 +1,12 @@
-import { useRef, useCallback, useMemo, useState } from 'react'
+import { useRef, useCallback, useMemo, useState, useEffect } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, Html, Sphere, Line } from '@react-three/drei'
 import * as THREE from 'three'
 import { useHubStore } from '../store'
 import type { AgentData, Task } from '../store'
 import { Card3D } from '../ui/3d-card'
+import type { FlowView } from '../types/flows'
+import { FLOW_META, FLOW_ORDER } from '../types/flows'
 
 // ── Palette ──
 const STATUS_COLOR: Record<string, string> = {
@@ -728,6 +730,127 @@ function CameraController({ target, distance, enabled }: {
   )
 }
 
+function FlowPortal({
+  flow,
+  position,
+  active,
+  onSelect,
+}: {
+  flow: FlowView
+  position: [number, number, number]
+  active: boolean
+  onSelect: (flow: FlowView) => void
+}) {
+  const groupRef = useRef<THREE.Group>(null)
+  const pulseRef = useRef<THREE.Mesh>(null)
+  const [hovered, setHovered] = useState(false)
+  const meta = FLOW_META[flow]
+
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime
+    if (groupRef.current) {
+      groupRef.current.rotation.y = t * 0.35 + position[0] * 0.01
+      groupRef.current.position.y = position[1] + Math.sin(t * 1.1 + position[2] * 0.03) * 0.28
+    }
+    if (pulseRef.current) {
+      const s = 1 + Math.sin(t * 2.2 + position[0]) * 0.06
+      pulseRef.current.scale.set(s, s, s)
+    }
+  })
+
+  const glow = hovered ? 0.36 : active ? 0.22 : 0.12
+
+  return (
+    <group
+      ref={groupRef}
+      position={position}
+      onClick={(e) => {
+        e.stopPropagation()
+        onSelect(flow)
+      }}
+      onPointerOver={() => setHovered(true)}
+      onPointerOut={() => setHovered(false)}
+    >
+      <mesh>
+        <icosahedronGeometry args={[0.94, 1]} />
+        <meshBasicMaterial color={meta.color} wireframe transparent opacity={hovered ? 0.78 : 0.44} />
+      </mesh>
+      <mesh>
+        <octahedronGeometry args={[active ? 0.56 : 0.48, 1]} />
+        <meshBasicMaterial color={meta.color} transparent opacity={active ? 0.8 : 0.45} />
+      </mesh>
+      <mesh ref={pulseRef}>
+        <sphereGeometry args={[1.2, 16, 16]} />
+        <meshBasicMaterial color={meta.color} transparent opacity={glow} side={THREE.BackSide} />
+      </mesh>
+      <Line points={[[0, -0.9, 0], [0, -2.4, 0]]} color={meta.color} lineWidth={0.7} transparent opacity={0.14} />
+      <Html position={[0, -2.7, 0]} center style={{ pointerEvents: 'none', userSelect: 'none' }}>
+        <div
+          style={{
+            border: `1px solid ${meta.color}28`,
+            background: '#060912d8',
+            borderRadius: 7,
+            padding: '4px 8px',
+            minWidth: 108,
+            textAlign: 'center',
+            boxShadow: active ? `0 0 16px ${meta.color}25` : 'none',
+            fontFamily: "'JetBrains Mono', monospace",
+          }}
+        >
+          <div style={{ fontSize: 9, color: meta.color, fontWeight: 700 }}>{meta.shortcut}</div>
+          <div style={{ fontSize: 9, color: '#b4c1d8', letterSpacing: '0.05em' }}>{meta.shortLabel}</div>
+        </div>
+      </Html>
+    </group>
+  )
+}
+
+function FlowConstellation({
+  activeFlow,
+  onSelect,
+}: {
+  activeFlow: FlowView
+  onSelect: (flow: FlowView) => void
+}) {
+  const portals = useMemo(() => {
+    const radius = 54
+    return FLOW_ORDER.map((flow, i) => {
+      const a = (i / FLOW_ORDER.length) * Math.PI * 2 - Math.PI / 2
+      const x = Math.cos(a) * radius
+      const z = Math.sin(a) * radius
+      const y = 2.5 + Math.sin(i * 1.4) * 1.6
+      return { flow, pos: [x, y, z] as [number, number, number] }
+    })
+  }, [])
+
+  return (
+    <group>
+      {portals.map((p) => (
+        <FlowPortal
+          key={`portal-${p.flow}`}
+          flow={p.flow}
+          position={p.pos}
+          active={p.flow === activeFlow}
+          onSelect={onSelect}
+        />
+      ))}
+      {portals.map((p) => (
+        <Line
+          key={`portal-line-${p.flow}`}
+          points={[p.pos, [0, 0, 0]]}
+          color={FLOW_META[p.flow].color}
+          lineWidth={0.4}
+          transparent
+          opacity={p.flow === activeFlow ? 0.16 : 0.06}
+          dashed
+          dashSize={1.8}
+          gapSize={0.8}
+        />
+      ))}
+    </group>
+  )
+}
+
 // ── Detail Panels — orbiting info cards around focused planet ──
 function DetailPanels({ detail, size, color }: {
   detail: any; size: number; color: string
@@ -837,7 +960,13 @@ function DetailPanels({ detail, size, color }: {
 // SCENE
 // ════════════════════════════════════════════
 
-function Scene() {
+function Scene({
+  activeFlow,
+  onFlowChange,
+}: {
+  activeFlow: FlowView
+  onFlowChange: (flow: FlowView) => void
+}) {
   const { agents, tasks, connections, selectedAgent, setSelectedAgent,
     focusedAgent, focusAgent, agentDetail, setAgentDetail, loadingDetail, setLoadingDetail } = useHubStore()
   const layout = useMemo(() => layoutAgents(agents), [agents])
@@ -959,6 +1088,8 @@ function Scene() {
       {/* Comets */}
       {spawnTasks.map((t, i) => <Comet key={t.id} task={t} index={i} />)}
 
+      <FlowConstellation activeFlow={activeFlow} onSelect={onFlowChange} />
+
       <CameraController
         target={focusPos || [0, 0, 0]}
         distance={focusedAgent ? focusSize + 5 : 30}
@@ -968,15 +1099,36 @@ function Scene() {
   )
 }
 
-export function HubScene() {
+export function HubScene({
+  activeFlow,
+  onFlowChange,
+}: {
+  activeFlow: FlowView
+  onFlowChange: (flow: FlowView) => void
+}) {
   const { focusedAgent, focusAgent } = useHubStore()
 
-  // ESC to exit focus
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape' && focusedAgent) focusAgent(null)
-  }, [focusedAgent, focusAgent])
+    const target = e.target as HTMLElement | null
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+      return
+    }
+    if (e.key === 'Escape' && focusedAgent) {
+      focusAgent(null)
+      return
+    }
+    const map: Partial<Record<string, FlowView>> = {
+      '1': 'overview',
+      '2': 'graph',
+      '3': 'tasks',
+      '4': 'gateway',
+      '5': 'meshy',
+    }
+    const flow = map[e.key]
+    if (flow) onFlowChange(flow)
+  }, [focusedAgent, focusAgent, onFlowChange])
 
-  useMemo(() => {
+  useEffect(() => {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
@@ -985,7 +1137,7 @@ export function HubScene() {
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <Canvas camera={{ position: [0, 16, 30], fov: 48, near: 0.1, far: 300 }}
         gl={{ antialias: true, alpha: false }} dpr={[1, 1.5]} style={{ background: '#040407' }}>
-        <Scene />
+        <Scene activeFlow={activeFlow} onFlowChange={onFlowChange} />
       </Canvas>
       {/* Back button when focused */}
       {focusedAgent && (
@@ -1007,6 +1159,25 @@ export function HubScene() {
           ← ESC — Back to System
         </button>
       )}
+      <div
+        style={{
+          position: 'absolute',
+          right: 12,
+          bottom: 12,
+          zIndex: 18,
+          border: `1px solid ${FLOW_META[activeFlow].color}40`,
+          background: '#060912cc',
+          borderRadius: 8,
+          padding: '6px 10px',
+          color: '#8f9ab0',
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 10,
+          letterSpacing: '0.04em',
+          backdropFilter: 'blur(8px)',
+        }}
+      >
+        FLOW {FLOW_META[activeFlow].shortcut}: <span style={{ color: FLOW_META[activeFlow].color }}>{FLOW_META[activeFlow].label}</span>
+      </div>
     </div>
   )
 }
