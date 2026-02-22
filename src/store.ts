@@ -61,6 +61,31 @@ export interface AgentDetail {
   }
 }
 
+export interface CronJob {
+  id: string; name: string; agentId: string; enabled: boolean
+  schedule: string; sessionTarget: string; model: string | null
+  payload: string; delivery: string
+  state: {
+    lastStatus: string; lastRunAt: number; lastDuration: number
+    nextRunAt: number; consecutiveErrors: number; lastActivity: string
+  }
+}
+
+export interface SubAgent {
+  id: string; key: string; agentId: string; model: string
+  label: string; status: string; lastActivity: string; lastActivityMs: number
+}
+
+export interface WorkspaceInfo {
+  path: string; files: string[]; dirs: string[]
+}
+
+export interface GraphData {
+  agents: AgentData[]; sessions: Task[]; connections: Connection[]
+  cronJobs: CronJob[]; subagents: SubAgent[]
+  workspaces: Record<string, WorkspaceInfo>
+}
+
 export interface Connection {
   id: string
   from: string
@@ -81,9 +106,10 @@ interface HubState {
   nodes: Node[]
   edges: Edge[]
   selectedAgent: AgentData | null
-  focusedAgent: AgentData | null      // zoomed-in agent
-  agentDetail: AgentDetail | null     // detailed data for focused agent
+  focusedAgent: AgentData | null
+  agentDetail: AgentDetail | null
   loadingDetail: boolean
+  graphData: GraphData | null
   stats: { totalAgents: number; activeSessions: number; messagesTotal: number; activeConnections: number }
 
   setConnected: (v: boolean) => void
@@ -95,6 +121,7 @@ interface HubState {
   focusAgent: (a: AgentData | null) => void
   setAgentDetail: (d: AgentDetail | null) => void
   setLoadingDetail: (v: boolean) => void
+  setGraphData: (d: GraphData) => void
   setNodesEdges: (nodes: Node[], edges: Edge[]) => void
   incrementMessages: () => void
   loadMockData: () => void
@@ -152,6 +179,7 @@ export const useHubStore = create<HubState>((set, get) => ({
   focusedAgent: null,
   agentDetail: null,
   loadingDetail: false,
+  graphData: null,
   stats: { totalAgents: 0, activeSessions: 0, messagesTotal: 0, activeConnections: 0 },
 
   setConnected: (v) => set({ connected: v }),
@@ -198,6 +226,7 @@ export const useHubStore = create<HubState>((set, get) => ({
   focusAgent: (a) => set({ focusedAgent: a, agentDetail: null }),
   setAgentDetail: (d) => set({ agentDetail: d }),
   setLoadingDetail: (v) => set({ loadingDetail: v }),
+  setGraphData: (d) => set({ graphData: d }),
   setNodesEdges: (nodes, edges) => set({ nodes, edges }),
   incrementMessages: () => set(s => ({ stats: { ...s.stats, messagesTotal: s.stats.messagesTotal + 1 } })),
 

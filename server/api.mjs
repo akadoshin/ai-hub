@@ -420,6 +420,111 @@ app.get('/api/agents/:id/detail', async (req, res) => {
   }
 })
 
+// ── Graph Data — full structural view of OpenClaw ──
+
+async function getGraphData() {
+  const agents = await getAgents()
+  const sessions = await getSessions()
+  const connections = await getConnections(agents, sessions)
+
+  // Read cron jobs
+  let cronJobs = []
+  try {
+    const cronPath = path.join(OPENCLAW_DIR, 'cron', 'jobs.json')
+    const cronData = await readJsonSafe(cronPath)
+    if (cronData?.jobs) {
+      cronJobs = cronData.jobs.map(j => ({
+        id: j.id,
+        name: j.name,
+        agentId: j.agentId,
+        enabled: j.enabled,
+        schedule: j.schedule?.kind === 'cron' ? j.schedule.expr : j.schedule?.kind === 'every' ? `every ${Math.round((j.schedule.everyMs || 0) / 60000)}m` : 'unknown',
+        sessionTarget: j.sessionTarget || 'isolated',
+        model: null, // inherits from agent
+        payload: j.payload?.message?.slice(0, 200) || '',
+        state: {
+          lastStatus: j.state?.lastStatus || 'unknown',
+          lastRunAt: j.state?.lastRunAtMs || 0,
+          lastDuration: j.state?.lastDurationMs || 0,
+          nextRunAt: j.state?.nextRunAtMs || 0,
+          consecutiveErrors: j.state?.consecutiveErrors || 0,
+          lastActivity: formatTimeDiff(j.state?.lastRunAtMs),
+        },
+        delivery: j.delivery?.mode || 'none',
+      }))
+    }
+  } catch {}
+
+  // Read all sessions with full detail for subagents
+  const subagents = []
+  const cronSessions = []
+  try {
+    const raw = await getAllSessionsRaw()
+    for (const { key, session, agentId } of raw) {
+      if (key.endsWith(':main')) continue
+      const isCron = key.includes(':cron:')
+      const isSubagent = key.includes(':subagent:')
+      const isCronRun = key.includes(':run:')
+
+      if (isSubagent) {
+        subagents.push({
+          id: session.sessionId || key,
+          key,
+          agentId,
+          model: session.model || 'unknown',
+          label: session.label || 'Subagent',
+          status: getSessionStatus(session),
+          lastActivity: formatTimeDiff(session.updatedAt),
+          lastActivityMs: session.updatedAt || 0,
+        })
+      } else if (isCron && !isCronRun) {
+        // Cron session (not a run)
+        const cronId = key.split(':cron:')[1]?.split(':')[0]
+        cronSessions.push({
+          id: session.sessionId || key,
+          key,
+          cronId,
+          agentId,
+          model: session.model || 'unknown',
+          label: session.label || key.split(':').pop(),
+          status: getSessionStatus(session),
+          lastActivity: formatTimeDiff(session.updatedAt),
+        })
+      }
+    }
+  } catch {}
+
+  // Read workspace structure for each agent
+  const workspaces = {}
+  for (const agent of agents) {
+    const ws = agent.id === 'main'
+      ? path.join(process.env.HOME, '.openclaw', 'workspace')
+      : path.join(process.env.HOME, '.openclaw', `workspace-${agent.id}`)
+    try {
+      const entries = await fs.readdir(ws, { withFileTypes: true })
+      const files = entries.filter(e => e.name.endsWith('.md') || e.name.endsWith('.json')).map(e => e.name)
+      const dirs = entries.filter(e => e.isDirectory()).map(e => e.name)
+      workspaces[agent.id] = { path: ws, files, dirs }
+    } catch {
+      workspaces[agent.id] = { path: ws, files: [], dirs: [] }
+    }
+  }
+
+  return {
+    agents,
+    sessions,
+    connections,
+    cronJobs,
+    subagents,
+    cronSessions,
+    workspaces,
+  }
+}
+
+app.get('/api/graph', async (req, res) => {
+  res.json(await getGraphData())
+})
+
 app.get('/api/state', async (req, res) => {
   res.json(await getFullState())
 })
