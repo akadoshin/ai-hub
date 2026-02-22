@@ -1,12 +1,12 @@
 import { useHubStore } from '../store'
 import { Bot, Activity, MessageSquare, Link2, Wifi, WifiOff } from 'lucide-react'
 import { Spotlight } from '../ui/spotlight'
-import type { FlowView } from '../types/flows'
-import { FLOW_META } from '../types/flows'
+import type { MainView } from '../types/flows'
+import { MAIN_VIEW_META } from '../types/flows'
 
-export function TopBar({ activeFlow }: { activeFlow: FlowView }) {
+export function TopBar({ mainView }: { mainView: MainView }) {
   const { connected, stats } = useHubStore()
-  const flow = FLOW_META[activeFlow]
+  const flow = MAIN_VIEW_META[mainView]
 
   return (
     <Spotlight className="shrink-0 z-10" spotlightColor="rgba(0,255,136,0.04)">
@@ -37,7 +37,7 @@ export function TopBar({ activeFlow }: { activeFlow: FlowView }) {
           style={{ borderColor: `${flow.color}25`, background: `${flow.color}0d` }}
         >
           <span className="text-[9px] text-[#5c6578] uppercase tracking-wider font-mono">Flow</span>
-          <span className="text-[11px] font-semibold" style={{ color: flow.color }}>{flow.shortLabel}</span>
+          <span className="text-[11px] font-semibold" style={{ color: flow.color }}>{flow.label}</span>
           <span className="text-[9px] text-[#6b7280] font-mono">[{flow.shortcut}]</span>
         </div>
 

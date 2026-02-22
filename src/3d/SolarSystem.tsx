@@ -2,11 +2,12 @@ import { useRef, useCallback, useMemo, useState, useEffect } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, Html, Sphere, Line } from '@react-three/drei'
 import * as THREE from 'three'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useHubStore } from '../store'
 import type { AgentData, Task } from '../store'
 import { Card3D } from '../ui/3d-card'
-import type { FlowView } from '../types/flows'
-import { FLOW_META, FLOW_ORDER } from '../types/flows'
+import type { MainView } from '../types/flows'
+import { MAIN_VIEW_META } from '../types/flows'
 
 // ── Palette ──
 const STATUS_COLOR: Record<string, string> = {
@@ -236,12 +237,16 @@ const liquidVert = `
   void main(){
     vNormal=normal;
     vPos=position;
-    float n1=snoise(position*1.5+uTime*0.6);
-    float n2=snoise(position*3.0-uTime*0.3)*0.5;
-    float n3=snoise(position*6.0+uTime*1.2)*0.15;
-    float n=n1+n2+n3;
+    float speedA = 0.45 + uIntensity * 2.1;
+    float speedB = 0.24 + uIntensity * 1.5;
+    float speedC = 1.0 + uIntensity * 3.0;
+    float n1=snoise(position*1.5+uTime*speedA);
+    float n2=snoise(position*3.0-uTime*speedB)*0.55;
+    float n3=snoise(position*6.0+uTime*speedC)*0.18;
+    float flow = sin((position.x + position.z) * 6.0 + uTime * (1.0 + uIntensity * 6.0)) * (0.08 * uIntensity);
+    float n=n1+n2+n3+flow;
     vNoise=n;
-    float d=n*uIntensity;
+    float d=n*(0.04 + uIntensity*0.55);
     vDisp=d;
     vec3 np=position+normal*d;
     gl_Position=projectionMatrix*modelViewMatrix*vec4(np,1.0);
@@ -274,13 +279,13 @@ const liquidFrag = `
     base+=fresnel*uColor*1.2;
 
     // Pulse
-    float pulse=sin(uTime*2.0)*0.08+0.92;
+    float pulse=sin(uTime*(1.6 + uIntensity*8.0))*0.12+0.9;
     base*=pulse;
 
     // Brighter when more intense (active)
-    base*=(0.7+uIntensity*2.0);
+    base*=(0.72+uIntensity*2.35);
 
-    float alpha=0.9+fresnel*0.1;
+    float alpha=0.82+fresnel*0.12+uIntensity*0.1;
     gl_FragColor=vec4(base,alpha);
   }
 `
@@ -292,6 +297,7 @@ const liquidFrag = `
 function LiquidCore({ size, color, color2, active }: {
   size: number; color: string; color2: string; active: boolean
 }) {
+  const coreRef = useRef<THREE.Mesh>(null)
   const matRef = useRef<THREE.ShaderMaterial>(null)
   const uniforms = useMemo(() => ({
     uTime: { value: 0 }, uIntensity: { value: 0 },
@@ -300,12 +306,21 @@ function LiquidCore({ size, color, color2, active }: {
   useMemo(() => { uniforms.uColor.value.set(color); uniforms.uColor2.value.set(color2) }, [color, color2])
   useFrame(({ clock }) => {
     if (!matRef.current) return
-    matRef.current.uniforms.uTime.value = clock.elapsedTime
-    const target = active ? 0.35 : 0.03
-    matRef.current.uniforms.uIntensity.value += (target - matRef.current.uniforms.uIntensity.value) * 0.04
+    const t = clock.elapsedTime
+    matRef.current.uniforms.uTime.value = t
+    const target = active ? 0.72 : 0.02
+    matRef.current.uniforms.uIntensity.value += (target - matRef.current.uniforms.uIntensity.value) * 0.08
+    if (coreRef.current) {
+      const wobble = active ? 0.08 : 0.015
+      coreRef.current.scale.set(
+        1 + Math.sin(t * (active ? 5.4 : 1.5)) * wobble,
+        1 + Math.cos(t * (active ? 4.3 : 1.3)) * wobble,
+        1 + Math.sin(t * (active ? 6.2 : 1.1)) * wobble,
+      )
+    }
   })
   return (
-    <mesh>
+    <mesh ref={coreRef}>
       <icosahedronGeometry args={[size * 0.62, 5]} />
       <shaderMaterial ref={matRef} vertexShader={liquidVert} fragmentShader={liquidFrag} uniforms={uniforms} transparent depthWrite={false} />
     </mesh>
@@ -437,9 +452,9 @@ function MoonSurface({ radius, color, active }: {
 }
 
 // ── Planet ──
-function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, crons, connections }: {
+function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, crons, connections, runningLoad }: {
   agent: AgentData; position: [number, number, number]; orbit: number
-  selected: boolean; onClick: () => void; onDoubleClick?: () => void; crons: Task[]; connections?: number
+  selected: boolean; onClick: () => void; onDoubleClick?: () => void; crons: Task[]; connections?: number; runningLoad?: number
 }) {
   const groupRef = useRef<THREE.Group>(null)
   const selRingRef = useRef<THREE.Mesh>(null)
@@ -448,10 +463,10 @@ function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, cron
   const c = STATUS_COLOR[agent.status] ?? '#334'
   const c2 = STATUS_COLOR2[agent.status] ?? '#151520'
   const isActive = agent.status === 'active' || agent.status === 'thinking'
+  const isExecuting = isActive || (runningLoad ?? 0) > 0
   const isMain = agent.id === 'main'
   const size = isMain ? 2.8 : 1.5
   const model = agent.model.replace('anthropic/', '').replace('claude-', '')
-  const showInfo = selected || hovered || isMain || isActive
   const showDetail = selected || hovered
   const highlight = selected || hovered
 
@@ -481,32 +496,32 @@ function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, cron
         onPointerLeave={() => setHovered(false)}
       >
         {/* Planet body */}
-        <PlanetSurface size={size} color={c} color2={c2} active={isActive} isMain={isMain} />
-        <LiquidCore size={size * 0.66} color={c} color2={c2} active={isActive} />
-        {highlight && <WireframeShell size={size * 1.03} color={c} active={isActive} />}
+        <PlanetSurface size={size} color={c} color2={c2} active={isExecuting} isMain={isMain} />
+        <LiquidCore size={size * 0.72} color={c} color2={c2} active={isExecuting} />
+        {highlight && <WireframeShell size={size * 1.03} color={c} active={isExecuting} />}
 
         {/* Hot center glow */}
         <Sphere args={[size * 0.15, 12, 12]}>
-          <meshBasicMaterial color={c} transparent opacity={isActive ? 0.7 : 0.2} />
+          <meshBasicMaterial color={c} transparent opacity={isExecuting ? 0.85 : 0.2} />
         </Sphere>
         {/* Center point light */}
         <Sphere args={[size * 0.08, 8, 8]}>
-          <meshBasicMaterial color="#fff" transparent opacity={isActive ? 0.5 : 0.1} />
+          <meshBasicMaterial color="#fff" transparent opacity={isExecuting ? 0.6 : 0.1} />
         </Sphere>
 
         {/* Atmosphere layers */}
         <Sphere args={[size * 1.15, 32, 32]}>
-          <meshBasicMaterial color={c} transparent opacity={isActive ? 0.24 : 0.1} side={THREE.BackSide} />
+          <meshBasicMaterial color={c} transparent opacity={isExecuting ? 0.3 : 0.1} side={THREE.BackSide} />
         </Sphere>
         <Sphere args={[size * 1.35, 24, 24]}>
-          <meshBasicMaterial color={c} transparent opacity={isActive ? 0.14 : 0.055} side={THREE.BackSide} />
+          <meshBasicMaterial color={c} transparent opacity={isExecuting ? 0.2 : 0.055} side={THREE.BackSide} />
         </Sphere>
         <Sphere ref={auraRef} args={[size * 1.65, 20, 20]}>
-          <meshBasicMaterial color={c} transparent opacity={isActive ? 0.2 : 0.08} side={THREE.BackSide} />
+          <meshBasicMaterial color={c} transparent opacity={isExecuting ? 0.28 : 0.08} side={THREE.BackSide} />
         </Sphere>
 
         {/* Equatorial ring */}
-        <PlanetRing size={size} color={c} active={isActive} />
+        <PlanetRing size={size} color={c} active={isExecuting} />
 
         {/* Selection ring */}
         {highlight && (
@@ -523,32 +538,62 @@ function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, cron
         )}
 
         {/* Lighting */}
-        <pointLight intensity={isMain ? 2.8 : 0.7} color={c} distance={isMain ? 58 : 20} decay={2} />
+        <pointLight intensity={isExecuting ? (isMain ? 3.2 : 1.05) : (isMain ? 2.5 : 0.55)} color={c} distance={isMain ? 58 : 20} decay={2} />
 
         {/* Moons */}
         {crons.map((cron, i) => (
           <Moon key={cron.id} cron={cron} index={i} total={crons.length} planetSize={size} />
         ))}
 
-        {/* Info label */}
-        {showInfo && (
-          <Html position={[0, size + 1.6, 0]} center zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+        {/* Always-visible name tag */}
+        <Html position={[0, size + 1.05, 0]} center zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            background: '#05070cd8', border: `1px solid ${c}24`,
+            borderRadius: 999, padding: '3px 9px',
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          }}>
+            <span style={{
+              width: 5, height: 5, borderRadius: '50%', background: c,
+              boxShadow: isExecuting ? `0 0 8px ${c}` : 'none',
+              opacity: isExecuting ? 1 : 0.75,
+            }} />
+            <span style={{ fontSize: 9, color: '#dbe4f3', fontWeight: 700, letterSpacing: '0.05em' }}>
+              {agent.label}
+            </span>
+          </div>
+        </Html>
+
+        {/* Rich hover/selected details */}
+        {showDetail && (
+          <Html position={[0, size + 1.75, 0]} center zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
             <div style={{
-              textAlign: 'center', background: '#060609e8', backdropFilter: 'blur(12px)',
-              border: `1px solid ${c}30`, borderRadius: 6, padding: '6px 14px',
-              minWidth: isMain ? 200 : 150, fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              textAlign: 'center', background: '#060609ef', backdropFilter: 'blur(12px)',
+              border: `1px solid ${c}36`, borderRadius: 8, padding: '8px 14px',
+              minWidth: isMain ? 220 : 170, fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              boxShadow: `0 8px 26px ${c}1a`,
             }}>
               <div style={{ fontSize: isMain ? 13 : 11, fontWeight: 700, color: '#eee', marginBottom: 4, letterSpacing: '0.04em' }}>
                 {agent.label}
               </div>
-              <StatusBadge status={agent.status} color={c} active={isActive} />
+              <StatusBadge status={agent.status} color={c} active={isExecuting} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px 14px', marginTop: 6 }}>
                 <Stat label="MODEL" value={model} />
                 <Stat label="SESSIONS" value={`${agent.activeSessions || 0}/${agent.sessionCount || 0}`} />
-                {isMain && <Stat label="REASONING" value={agent.reasoningLevel || 'off'} />}
+                <Stat label="RUNNING" value={`${runningLoad || 0}`} />
+                <Stat label="LAST" value={agent.lastActivity} />
                 {crons.length > 0 && <Stat label="CRONS" value={`${crons.length}`} />}
+                {isMain && <Stat label="REASONING" value={agent.reasoningLevel || 'off'} />}
                 {(connections ?? 0) > 0 && <Stat label="LINKS" value={`${connections}`} />}
               </div>
+              {agent.description && (
+                <div style={{
+                  marginTop: 7, fontSize: 8, color: '#8fa1b8',
+                  borderTop: `1px solid ${c}15`, paddingTop: 5,
+                }}>
+                  {agent.description}
+                </div>
+              )}
               {agent.contextTokens && agent.contextTokens > 0 && <CtxBar tokens={agent.contextTokens} color={c} />}
             </div>
           </Html>
@@ -582,6 +627,14 @@ function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, cron
   )
 }
 
+function formatElapsed(value?: number): string {
+  if (!value || value <= 0) return '0s'
+  const total = Math.round(value)
+  const m = Math.floor(total / 60)
+  const s = total % 60
+  return m > 0 ? `${m}m ${s}s` : `${s}s`
+}
+
 // ── Moon ──
 function Moon({ cron, index, total, planetSize }: {
   cron: Task; index: number; total: number; planetSize: number
@@ -589,12 +642,14 @@ function Moon({ cron, index, total, planetSize }: {
   const ref = useRef<THREE.Group>(null)
   const shellRef = useRef<THREE.Mesh>(null)
   const haloRef = useRef<THREE.Mesh>(null)
+  const [hovered, setHovered] = useState(false)
   const moonR = planetSize + 2.0 + index * 1.0
   const speed = 0.3 / (1 + index * 0.15)
   const base = (index / Math.max(total, 1)) * Math.PI * 2
   const isRunning = cron.status === 'running'
   const mc = isRunning ? '#8ea8bf' : '#7b8794'
   const tilt = 0.15 + index * 0.1
+  const moonName = cron.label.replace('Cron: ', '')
 
   useFrame(({ clock }) => {
     if (!ref.current) return
@@ -626,7 +681,7 @@ function Moon({ cron, index, total, planetSize }: {
       {/* Moon orbit path */}
       <Line points={orbitPts} color={ORBIT_GRAY} lineWidth={1.0} transparent opacity={isRunning ? 0.48 : 0.3} dashed dashSize={0.3} gapSize={0.2} />
 
-      <group ref={ref}>
+      <group ref={ref} onPointerEnter={() => setHovered(true)} onPointerLeave={() => setHovered(false)}>
         <MoonSurface radius={0.24} color={mc} active={isRunning} />
         {/* Wireframe shell */}
         <mesh ref={shellRef}>
@@ -646,13 +701,41 @@ function Moon({ cron, index, total, planetSize }: {
         <Html position={[0, 0.52, 0]} center zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
           <div style={{
             background: '#06060ae0', borderRadius: 3, padding: '1px 5px',
-            fontSize: 7, color: isRunning ? '#b6d9ff' : '#7d8ea2', whiteSpace: 'nowrap',
+            border: `1px solid ${mc}2f`,
+            fontSize: 7, lineHeight: 1.2, color: isRunning ? '#d9e7f5' : '#b6c3d1',
             fontFamily: "'JetBrains Mono', monospace",
-            maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis',
+            maxWidth: 170, textAlign: 'center', whiteSpace: 'normal', wordBreak: 'break-word',
           }}>
-            {cron.label.replace('Cron: ', '')}
+            {moonName}
           </div>
         </Html>
+        {hovered && (
+          <Html position={[0.92, 0.08, 0]} zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+            <div style={{
+              background: '#070a10ef', border: `1px solid ${mc}35`, borderRadius: 6,
+              padding: '7px 10px', width: 170, boxShadow: `0 8px 24px ${mc}20`,
+              fontFamily: "'JetBrains Mono', monospace",
+            }}>
+              <div style={{ fontSize: 9, color: '#e5ecf7', fontWeight: 700, marginBottom: 4 }}>
+                {moonName}
+              </div>
+              <Detail label="Status" value={cron.status} />
+              <Detail label="Type" value={cron.type || 'cron'} />
+              <Detail label="Elapsed" value={formatElapsed(cron.elapsed)} />
+              {cron.parentAgent && <Detail label="Parent" value={cron.parentAgent} />}
+              <Detail label="Model" value={cron.model?.replace('anthropic/', '').replace('claude-', '') || 'unknown'} />
+              {cron.reasoningLevel && <Detail label="Reasoning" value={cron.reasoningLevel} />}
+              {cron.lastMessage && (
+                <div style={{
+                  marginTop: 4, paddingTop: 4, borderTop: `1px solid ${mc}20`,
+                  fontSize: 8, color: '#aeb9c9', lineHeight: 1.35,
+                }}>
+                  {cron.lastMessage.slice(0, 100)}
+                </div>
+              )}
+            </div>
+          </Html>
+        )}
       </group>
     </group>
   )
@@ -662,8 +745,10 @@ function Moon({ cron, index, total, planetSize }: {
 function Comet({ task, index }: { task: Task; index: number }) {
   const meshRef = useRef<THREE.Mesh>(null!)
   const groupRef = useRef<THREE.Group>(null)
+  const [hovered, setHovered] = useState(false)
   const isRunning = task.status === 'running'
   const c = isRunning ? '#60a5fa' : task.status === 'failed' ? '#f87171' : '#3a3a55'
+  const cometName = task.label || task.id
 
   const traj = useMemo(() => ({
     radius: 25 + index * 5,
@@ -689,7 +774,7 @@ function Comet({ task, index }: { task: Task; index: number }) {
   })
 
   return (
-    <group ref={groupRef}>
+    <group ref={groupRef} onPointerEnter={() => setHovered(true)} onPointerLeave={() => setHovered(false)}>
       {/* Comet head */}
       <mesh ref={meshRef}>
         <icosahedronGeometry args={[0.2, 1]} />
@@ -718,13 +803,41 @@ function Comet({ task, index }: { task: Task; index: number }) {
       <Html position={[0, 0.45, 0]} center zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
         <div style={{
           background: '#06060ae0', borderRadius: 3, padding: '1px 6px',
-          fontSize: 8, color: isRunning ? '#88bbff' : '#444',
+          border: `1px solid ${c}2a`,
+          fontSize: 8, color: isRunning ? '#cbe0ff' : '#a9b5c7',
           fontFamily: "'JetBrains Mono', monospace",
-          whiteSpace: 'nowrap', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis',
+          lineHeight: 1.2, whiteSpace: 'normal', maxWidth: 176, wordBreak: 'break-word', textAlign: 'center',
         }}>
-          {task.label}
+          {cometName}
         </div>
       </Html>
+      {hovered && (
+        <Html position={[1.15, 0.05, 0]} zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+          <div style={{
+            background: '#070a10ef', border: `1px solid ${c}35`, borderRadius: 6,
+            padding: '7px 10px', width: 176, boxShadow: `0 8px 24px ${c}20`,
+            fontFamily: "'JetBrains Mono', monospace",
+          }}>
+            <div style={{ fontSize: 9, color: '#e5ecf7', fontWeight: 700, marginBottom: 4 }}>
+              {cometName}
+            </div>
+            <Detail label="Status" value={task.status} />
+            <Detail label="Type" value={task.type || 'spawn'} />
+            <Detail label="Elapsed" value={formatElapsed(task.elapsed)} />
+            {task.parentAgent && <Detail label="Parent" value={task.parentAgent} />}
+            <Detail label="Model" value={task.model?.replace('anthropic/', '').replace('claude-', '') || 'unknown'} />
+            {task.reasoningLevel && <Detail label="Reasoning" value={task.reasoningLevel} />}
+            {task.lastMessage && (
+              <div style={{
+                marginTop: 4, paddingTop: 4, borderTop: `1px solid ${c}20`,
+                fontSize: 8, color: '#aeb9c9', lineHeight: 1.35,
+              }}>
+                {task.lastMessage.slice(0, 100)}
+              </div>
+            )}
+          </div>
+        </Html>
+      )}
     </group>
   )
 }
@@ -909,15 +1022,15 @@ function FlowPortal({
   active,
   onSelect,
 }: {
-  flow: FlowView
+  flow: MainView
   position: [number, number, number]
   active: boolean
-  onSelect: (flow: FlowView) => void
+  onSelect: (flow: MainView) => void
 }) {
   const groupRef = useRef<THREE.Group>(null)
   const pulseRef = useRef<THREE.Mesh>(null)
   const [hovered, setHovered] = useState(false)
-  const meta = FLOW_META[flow]
+  const meta = MAIN_VIEW_META[flow]
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime
@@ -971,24 +1084,26 @@ function FlowPortal({
           }}
         >
           <div style={{ fontSize: 9, color: meta.color, fontWeight: 700 }}>{meta.shortcut}</div>
-          <div style={{ fontSize: 9, color: '#b4c1d8', letterSpacing: '0.05em' }}>{meta.shortLabel}</div>
+          <div style={{ fontSize: 9, color: '#b4c1d8', letterSpacing: '0.05em' }}>{meta.label}</div>
         </div>
       </Html>
     </group>
   )
 }
 
+const MAIN_VIEWS: MainView[] = ['deck', 'graph']
+
 function FlowConstellation({
-  activeFlow,
+  mainView,
   onSelect,
 }: {
-  activeFlow: FlowView
-  onSelect: (flow: FlowView) => void
+  mainView: MainView
+  onSelect: (v: MainView) => void
 }) {
   const portals = useMemo(() => {
     const radius = 54
-    return FLOW_ORDER.map((flow, i) => {
-      const a = (i / FLOW_ORDER.length) * Math.PI * 2 - Math.PI / 2
+    return MAIN_VIEWS.map((flow, i) => {
+      const a = (i / MAIN_VIEWS.length) * Math.PI * 2 - Math.PI / 2
       const x = Math.cos(a) * radius
       const z = Math.sin(a) * radius
       const y = 2.5 + Math.sin(i * 1.4) * 1.6
@@ -1003,7 +1118,7 @@ function FlowConstellation({
           key={`portal-${p.flow}`}
           flow={p.flow}
           position={p.pos}
-          active={p.flow === activeFlow}
+          active={p.flow === mainView}
           onSelect={onSelect}
         />
       ))}
@@ -1011,10 +1126,10 @@ function FlowConstellation({
         <Line
           key={`portal-line-${p.flow}`}
           points={[p.pos, [0, 0, 0]]}
-          color={FLOW_META[p.flow].color}
+          color={MAIN_VIEW_META[p.flow].color}
           lineWidth={0.4}
           transparent
-          opacity={p.flow === activeFlow ? 0.16 : 0.06}
+          opacity={p.flow === mainView ? 0.16 : 0.06}
           dashed
           dashSize={1.8}
           gapSize={0.8}
@@ -1134,11 +1249,11 @@ function DetailPanels({ detail, size, color }: {
 // ════════════════════════════════════════════
 
 function Scene({
-  activeFlow,
-  onFlowChange,
+  mainView,
+  onMainViewChange,
 }: {
-  activeFlow: FlowView
-  onFlowChange: (flow: FlowView) => void
+  mainView: MainView
+  onMainViewChange: (v: MainView) => void
 }) {
   const { agents, tasks, connections, selectedAgent, setSelectedAgent,
     focusedAgent, focusAgent, agentDetail, setAgentDetail, loadingDetail, setLoadingDetail } = useHubStore()
@@ -1174,6 +1289,18 @@ function Scene({
     })
     return counts
   }, [agents, connections])
+
+  const runningByAgent = useMemo(() => {
+    const counts = new Map<string, number>()
+    agents.forEach(a => counts.set(a.id, 0))
+    tasks.forEach(t => {
+      if (t.status !== 'running') return
+      const id = t.parentAgent || t.agentId
+      if (!id) return
+      counts.set(id, (counts.get(id) || 0) + 1)
+    })
+    return counts
+  }, [agents, tasks])
 
   // Camera target
   const focusPos = focusedAgent ? layout.get(focusedAgent.id)?.pos ?? null : null
@@ -1221,7 +1348,9 @@ function Scene({
             onClick={() => handleClick(star)}
             onDoubleClick={() => handleDoubleClick(star)}
             crons={cronTasks.filter(t => t.parentAgent === 'main' && !planets.some(p => t.label?.toLowerCase().includes(p.id)))}
-            connections={connectionCounts.get(star.id) || 0} />
+            connections={connectionCounts.get(star.id) || 0}
+            runningLoad={runningByAgent.get(star.id) || 0}
+          />
         )
       })()}
 
@@ -1236,7 +1365,10 @@ function Scene({
             selected={selectedAgent?.id === p.id}
             onClick={() => handleClick(p)}
             onDoubleClick={() => handleDoubleClick(p)}
-            crons={[...moons, ...mainMoons]} connections={connectionCounts.get(p.id) || 0} />
+            crons={[...moons, ...mainMoons]}
+            connections={connectionCounts.get(p.id) || 0}
+            runningLoad={runningByAgent.get(p.id) || 0}
+          />
         )
       })}
 
@@ -1265,7 +1397,7 @@ function Scene({
       {/* Comets */}
       {spawnTasks.map((t, i) => <Comet key={t.id} task={t} index={i} />)}
 
-      <FlowConstellation activeFlow={activeFlow} onSelect={onFlowChange} />
+      <FlowConstellation mainView={mainView} onSelect={onMainViewChange} />
 
       <CameraController
         target={focusPos || [0, 0, 0]}
@@ -1277,13 +1409,19 @@ function Scene({
 }
 
 export function HubScene({
-  activeFlow,
-  onFlowChange,
+  mainView,
+  onMainViewChange,
 }: {
-  activeFlow: FlowView
-  onFlowChange: (flow: FlowView) => void
+  mainView: MainView
+  onMainViewChange: (v: MainView) => void
 }) {
   const { focusedAgent, focusAgent } = useHubStore()
+  const [showControlsHint, setShowControlsHint] = useState(true)
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setShowControlsHint(false), 9000)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     const target = e.target as HTMLElement | null
@@ -1294,16 +1432,13 @@ export function HubScene({
       focusAgent(null)
       return
     }
-    const map: Partial<Record<string, FlowView>> = {
-      '1': 'overview',
+    const viewMap: Partial<Record<string, MainView>> = {
+      '1': 'deck',
       '2': 'graph',
-      '3': 'tasks',
-      '4': 'gateway',
-      '5': 'meshy',
     }
-    const flow = map[e.key]
-    if (flow) onFlowChange(flow)
-  }, [focusedAgent, focusAgent, onFlowChange])
+    const view = viewMap[e.key]
+    if (view) onMainViewChange(view)
+  }, [focusedAgent, focusAgent, onMainViewChange])
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown)
@@ -1317,7 +1452,7 @@ export function HubScene({
     >
       <Canvas camera={{ position: [0, 16, 30], fov: 48, near: 0.1, far: 300 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }} dpr={[1, 1.5]} style={{ background: '#03060c', zIndex: 0 }}>
-        <Scene activeFlow={activeFlow} onFlowChange={onFlowChange} />
+        <Scene mainView={mainView} onMainViewChange={onMainViewChange} />
       </Canvas>
       {/* Back button when focused */}
       {focusedAgent && (
@@ -1339,26 +1474,64 @@ export function HubScene({
           ← ESC — Back to System
         </button>
       )}
-      <div
-        style={{
-          position: 'absolute',
-          right: 12,
-          top: 12,
-          zIndex: 60,
-          border: '1px solid #50678666',
-          background: '#07101af2',
-          borderRadius: 8,
-          padding: '7px 11px',
-          color: '#c6d2e3',
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: '0.015em',
-          backdropFilter: 'blur(8px)',
-          boxShadow: '0 8px 26px rgba(0,0,0,0.45)',
-        }}
-      >
-        Mouse: drag rotate, right-drag pan, wheel zoom, double-click focus
+      <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 12, zIndex: 80, pointerEvents: 'auto' }}>
+        <AnimatePresence mode="wait">
+          {showControlsHint ? (
+            <motion.div
+              key="controls-hint-expanded"
+              initial={{ opacity: 0, y: 14, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.985 }}
+              transition={{ duration: 0.2 }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 9,
+                border: '1px solid #50678666', background: '#07101af2',
+                borderRadius: 999, padding: '6px 10px 6px 12px',
+                color: '#c6d2e3', fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 10, fontWeight: 700, letterSpacing: '0.015em',
+                backdropFilter: 'blur(8px)', boxShadow: '0 8px 26px rgba(0,0,0,0.45)',
+              }}
+            >
+              <span style={{
+                fontSize: 8, letterSpacing: '0.09em', color: '#8ea7c2',
+                border: '1px solid #3f567099', borderRadius: 999, padding: '1px 6px',
+                background: '#08111b',
+              }}>
+                SUGGESTION
+              </span>
+              <span>drag rotate · right-drag pan · wheel zoom · double-click focus</span>
+              <button
+                onClick={() => setShowControlsHint(false)}
+                aria-label="Hide controls suggestion"
+                style={{
+                  border: '1px solid #42576f99', background: '#0a1521',
+                  color: '#a9bdd3', borderRadius: 999, width: 18, height: 18,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', fontSize: 11, lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </motion.div>
+          ) : (
+            <motion.button
+              key="controls-hint-collapsed"
+              initial={{ opacity: 0, y: 12, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              transition={{ duration: 0.18 }}
+              onClick={() => setShowControlsHint(true)}
+              style={{
+                border: '1px solid #3f56708a', background: '#08111be8', color: '#9fb2c8',
+                borderRadius: 999, padding: '5px 11px', fontSize: 9, fontWeight: 700,
+                letterSpacing: '0.05em', fontFamily: "'JetBrains Mono', monospace",
+                cursor: 'pointer', backdropFilter: 'blur(8px)',
+              }}
+            >
+              SUGGESTION: SHOW MOUSE CONTROLS
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
       <div
         style={{
@@ -1366,7 +1539,7 @@ export function HubScene({
           right: 12,
           bottom: 12,
           zIndex: 50,
-          border: `1px solid ${FLOW_META[activeFlow].color}40`,
+          border: `1px solid ${MAIN_VIEW_META[mainView].color}40`,
           background: '#060912cc',
           borderRadius: 8,
           padding: '6px 10px',
@@ -1377,7 +1550,7 @@ export function HubScene({
           backdropFilter: 'blur(8px)',
         }}
       >
-        FLOW {FLOW_META[activeFlow].shortcut}: <span style={{ color: FLOW_META[activeFlow].color }}>{FLOW_META[activeFlow].label}</span>
+        VIEW {MAIN_VIEW_META[mainView].shortcut}: <span style={{ color: MAIN_VIEW_META[mainView].color }}>{MAIN_VIEW_META[mainView].label}</span>
       </div>
     </div>
   )

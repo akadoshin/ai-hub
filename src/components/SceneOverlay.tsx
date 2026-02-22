@@ -1,14 +1,13 @@
 import { useHubStore } from '../store'
 import { BackgroundBeams } from '../ui/background-beams'
-import type { FlowView } from '../types/flows'
-import { FLOW_META, FLOW_ORDER } from '../types/flows'
+import type { MainView } from '../types/flows'
 
 export function SceneOverlay({
-  activeFlow,
-  onFlowChange,
+  mainView: _mainView,
+  onMainViewChange: _onMainViewChange,
 }: {
-  activeFlow: FlowView
-  onFlowChange: (flow: FlowView) => void
+  mainView: MainView
+  onMainViewChange: (v: MainView) => void
 }) {
   const { agents, tasks, connected } = useHubStore()
   const active = agents.filter(a => a.status === 'active' || a.status === 'thinking').length
@@ -18,29 +17,6 @@ export function SceneOverlay({
   return (
     <div className="absolute inset-0 pointer-events-none z-30">
       <BackgroundBeams className="opacity-50" />
-
-      {/* Top-center: flow quick switch */}
-      <div className="absolute top-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full border border-[#222232] bg-[#08080ef2] px-2 py-1.5 backdrop-blur-md pointer-events-auto shadow-[0_8px_30px_rgba(0,0,0,0.45)]">
-        {FLOW_ORDER.map((flow) => {
-          const meta = FLOW_META[flow]
-          const selected = flow === activeFlow
-          return (
-            <button
-              key={flow}
-              onClick={() => onFlowChange(flow)}
-              className="rounded-full px-2 py-1 text-[9px] font-semibold tracking-wide transition-colors"
-              style={{
-                color: selected ? meta.color : '#888898',
-                border: `1px solid ${selected ? `${meta.color}66` : '#2a3548'}`,
-                background: selected ? `${meta.color}18` : '#0d0d18',
-              }}
-              title={`${meta.label} (${meta.shortcut})`}
-            >
-              {meta.shortLabel}
-            </button>
-          )
-        })}
-      </div>
 
       {/* Bottom-left: legend */}
       <div className="absolute bottom-3.5 left-3.5 flex flex-col gap-1 bg-[#040a14ef] backdrop-blur-md rounded-lg px-2.5 py-2 border border-[#24344c] shadow-[0_8px_24px_rgba(0,0,0,0.35)]">

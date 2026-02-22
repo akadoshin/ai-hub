@@ -1,47 +1,13 @@
-export type FlowView = 'overview' | 'graph' | 'tasks' | 'gateway' | 'meshy'
+export type MainView = 'deck' | 'graph'
+export type PanelView = 'tasks' | 'gateway' | 'meshy' | null
 
-export const FLOW_ORDER: FlowView[] = ['overview', 'graph', 'tasks', 'gateway', 'meshy']
+export const MAIN_VIEW_META: Record<MainView, { label: string; color: string; shortcut: string }> = {
+  deck: { label: '3D Deck', color: '#00ff88', shortcut: '1' },
+  graph: { label: 'Agent Graph', color: '#60a5fa', shortcut: '2' },
+}
 
-export const FLOW_META: Record<FlowView, {
-  label: string
-  shortLabel: string
-  hint: string
-  color: string
-  shortcut: string
-}> = {
-  overview: {
-    label: '3D Command Deck',
-    shortLabel: 'Deck',
-    hint: 'Vista principal de agentes y conexiones',
-    color: '#00ff88',
-    shortcut: '1',
-  },
-  graph: {
-    label: 'Agent Graph',
-    shortLabel: 'Graph',
-    hint: 'Topologia completa del sistema',
-    color: '#60a5fa',
-    shortcut: '2',
-  },
-  tasks: {
-    label: 'Tasks & Sessions',
-    shortLabel: 'Tasks',
-    hint: 'Cron, spawns y sesiones activas',
-    color: '#f59e0b',
-    shortcut: '3',
-  },
-  gateway: {
-    label: 'Gateway Control',
-    shortLabel: 'Gateway',
-    hint: 'Chat, nodos, cron y operaciones RPC',
-    color: '#22d3ee',
-    shortcut: '4',
-  },
-  meshy: {
-    label: 'Meshy Studio',
-    shortLabel: 'Meshy',
-    hint: 'Generacion de assets 3D para AI flows',
-    color: '#f472b6',
-    shortcut: '5',
-  },
+export const PANEL_META: Record<Exclude<PanelView, null>, { label: string; color: string; shortcut: string; hint: string }> = {
+  tasks: { label: 'Tasks', color: '#f59e0b', shortcut: '3', hint: 'Cron, spawns y sesiones' },
+  gateway: { label: 'Gateway', color: '#22d3ee', shortcut: '4', hint: 'Chat y operaciones RPC' },
+  meshy: { label: 'Meshy', color: '#f472b6', shortcut: '5', hint: 'Generacion de assets 3D' },
 }
