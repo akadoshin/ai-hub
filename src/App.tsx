@@ -21,7 +21,7 @@ export default function App() {
   }, [loadMockData])
 
   return (
-    <div className="flex h-screen flex-col bg-[#03050a]">
+    <div className="flex h-screen flex-col bg-[#040407]">
       <TopBar activeFlow={activeFlow} />
 
       <div className="relative flex-1 overflow-hidden">

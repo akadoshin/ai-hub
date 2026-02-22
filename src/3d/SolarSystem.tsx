@@ -25,10 +25,11 @@ const STATUS_COLOR2: Record<string, string> = {
 const ORBIT_RADII = [0, 12, 22, 32, 42]
 const SCENE_HTML_Z: [number, number] = [0, -10]
 const DETAIL_HTML_Z: [number, number] = [2, -8]
-const ORBIT_GRAY = '#8c949d'
-const ORBIT_GRAY_ACTIVE = '#a5adb6'
-const ORBIT_ACCENT = '#9ea7b1'
-const ORBIT_DASH = '#929aa4'
+const ORBIT_GRAY = '#7e8791'
+const ORBIT_GRAY_ACTIVE = '#848d97'
+const ORBIT_ACCENT = '#727b85'
+const ORBIT_DASH = '#676f79'
+const ORBIT_PLANE_Y = -0.18
 
 function layoutAgents(agents: AgentData[]): Map<string, { pos: [number, number, number]; orbit: number }> {
   const m = new Map<string, { pos: [number, number, number]; orbit: number }>()
@@ -146,7 +147,7 @@ function SketchOrbitRing({ radius, color: _color, active }: { radius: number; co
     for (let i = 0; i <= 200; i++) {
       const a = (i / 200) * Math.PI * 2
       const w = Math.sin(a * 12) * 0.08 + Math.sin(a * 7.3) * 0.05
-      pts.push(new THREE.Vector3(Math.cos(a) * (radius + w), 0, Math.sin(a) * (radius + w)))
+      pts.push(new THREE.Vector3(Math.cos(a) * (radius + w), ORBIT_PLANE_Y, Math.sin(a) * (radius + w)))
     }
     return pts
   }, [radius])
@@ -166,35 +167,21 @@ function SketchOrbitRing({ radius, color: _color, active }: { radius: number; co
       <Line
         points={points}
         color={ringColor}
-        lineWidth={active ? 1.85 : 1.45}
+        lineWidth={active ? 1.75 : 1.45}
         transparent
-        opacity={active ? 0.68 : 0.52}
+        opacity={active ? 0.62 : 0.5}
       />
       {/* Dashed overlay for detail */}
       <Line
         points={points}
         color={accent}
-        lineWidth={active ? 0.95 : 0.7}
+        lineWidth={active ? 0.82 : 0.64}
         transparent
-        opacity={active ? 0.4 : 0.28}
+        opacity={active ? 0.3 : 0.22}
         dashed
         dashSize={1.2}
         gapSize={0.6}
       />
-      {active && (
-        <>
-          {/* Marker dots */}
-          <Sphere args={[0.14, 8, 8]} position={[radius, 0, 0]}>
-            <meshBasicMaterial color={ringColor} transparent opacity={0.62} />
-          </Sphere>
-          <Sphere args={[0.09, 8, 8]} position={[-radius * 0.55, 0, radius * 0.82]}>
-            <meshBasicMaterial color={ringColor} transparent opacity={0.52} />
-          </Sphere>
-          <Sphere args={[0.07, 8, 8]} position={[radius * 0.7, 0, -radius * 0.7]}>
-            <meshBasicMaterial color={ringColor} transparent opacity={0.36} />
-          </Sphere>
-        </>
-      )}
     </group>
   )
 }

@@ -36,16 +36,16 @@ function FlowButton({
       onClick={() => onFlowChange(flow)}
       className="group flex items-center gap-2 rounded-xl px-3 py-2 text-left transition-all"
       style={{
-        border: `1px solid ${active ? `${meta.color}70` : '#2a3548'}`,
-        background: active ? `${meta.color}26` : '#08101cf0',
-        color: active ? meta.color : '#b3c0d3',
-        boxShadow: active ? `0 0 18px ${meta.color}26` : 'none',
+        border: `1px solid ${active ? `${meta.color}60` : '#222230'}`,
+        background: active ? `${meta.color}18` : '#0d0d16f0',
+        color: active ? meta.color : '#777790',
+        boxShadow: active ? `0 0 18px ${meta.color}20` : 'none',
       }}
       title={`${meta.label} (${meta.shortcut})`}
     >
       <span className="shrink-0">{FLOW_ICON[flow]}</span>
       <span className="hidden md:block text-[10px] font-semibold tracking-wide">{meta.shortLabel}</span>
-      <span className="hidden xl:block ml-auto text-[9px] text-[#8aa0be] font-mono">{meta.shortcut}</span>
+      <span className="hidden xl:block ml-auto text-[9px] text-[#555568] font-mono">{meta.shortcut}</span>
     </button>
   )
 }
@@ -65,16 +65,16 @@ function PanelContent({ activeFlow }: { activeFlow: FlowView }) {
   }
 
   return (
-    <div className="h-full p-4 flex flex-col gap-3 text-[#cdd6e7]">
-      <div className="rounded-xl border border-[#1a1f2a] bg-[#070b12cc] p-3">
-        <div className="text-[11px] font-semibold tracking-wide text-[#9cb2d2]">3D Command Deck</div>
-        <div className="text-[12px] mt-1 text-[#d8e1f0]">
+    <div className="h-full p-4 flex flex-col gap-3 text-[#ccccdd]">
+      <div className="rounded-xl border border-[#1a1a22] bg-[#0a0a10cc] p-3">
+        <div className="text-[11px] font-semibold tracking-wide text-[#9999b8]">3D Command Deck</div>
+        <div className="text-[12px] mt-1 text-[#bbbbcc]">
           Navega haciendo click en los portales 3D orbitando la escena o con los accesos rapidos `1-5`.
         </div>
       </div>
-      <div className="rounded-xl border border-[#1a1f2a] bg-[#070b12cc] p-3">
-        <div className="text-[10px] font-semibold tracking-wide text-[#83e7bf]">Flujos Activos</div>
-        <ul className="mt-2 space-y-1 text-[11px] text-[#8e9ab1]">
+      <div className="rounded-xl border border-[#1a1a22] bg-[#0a0a10cc] p-3">
+        <div className="text-[10px] font-semibold tracking-wide text-[#00ff88]">Flujos Activos</div>
+        <ul className="mt-2 space-y-1 text-[11px] text-[#666680]">
           <li>Graph: topologia completa de agentes.</li>
           <li>Tasks: sesiones, cron y estado operativo.</li>
           <li>Gateway: chat, nodos y controles de runtime.</li>
@@ -103,7 +103,7 @@ export function FlowPanelOverlay({ activeFlow, onFlowChange }: Props) {
         ))}
       </div>
 
-      <div className="absolute left-1/2 -translate-x-1/2 bottom-3 md:hidden flex items-center gap-1 rounded-2xl border border-[#26344a] bg-[#040914f2] backdrop-blur-xl px-2 py-2 pointer-events-auto shadow-[0_8px_30px_rgba(0,0,0,0.45)]">
+      <div className="absolute left-1/2 -translate-x-1/2 bottom-3 md:hidden flex items-center gap-1 rounded-2xl border border-[#222232] bg-[#08081af2] backdrop-blur-xl px-2 py-2 pointer-events-auto shadow-[0_8px_30px_rgba(0,0,0,0.45)]">
         {FLOW_ORDER.map((flow) => (
           <FlowButton
             key={`mobile-${flow}`}
@@ -130,21 +130,21 @@ export function FlowPanelOverlay({ activeFlow, onFlowChange }: Props) {
               className="h-full rounded-2xl overflow-hidden backdrop-blur-xl"
               style={{
                 border: `1px solid ${meta.color}35`,
-                background: 'linear-gradient(165deg, rgba(8,10,16,0.92), rgba(5,7,12,0.92))',
+                background: 'linear-gradient(165deg, rgba(10,10,16,0.94), rgba(6,6,12,0.94))',
                 boxShadow: `0 14px 70px rgba(0,0,0,0.45), 0 0 24px ${meta.color}1f`,
               }}
             >
-              <div className="h-12 px-3 border-b border-[#1b2230] flex items-center justify-between bg-[#070b12cc]">
+              <div className="h-12 px-3 border-b border-[#1a1a22] flex items-center justify-between bg-[#0a0a10cc]">
                 <div className="flex items-center gap-2 min-w-0">
                   <span style={{ color: meta.color }}>{FLOW_ICON[activeFlow]}</span>
                   <div className="min-w-0">
-                    <div className="text-[11px] font-semibold text-[#dde6f7] tracking-wide truncate">{meta.label}</div>
-                    <div className="text-[9px] text-[#647088] font-mono truncate">{meta.hint}</div>
+                    <div className="text-[11px] font-semibold text-[#ddddee] tracking-wide truncate">{meta.label}</div>
+                    <div className="text-[9px] text-[#555568] font-mono truncate">{meta.hint}</div>
                   </div>
                 </div>
                 <button
                   onClick={() => onFlowChange('overview')}
-                  className="w-8 h-8 rounded-lg border border-[#1f2a3c] bg-[#0a101bcc] text-[#94a3b8] hover:text-white hover:border-[#2e425e] transition-colors flex items-center justify-center"
+                  className="w-8 h-8 rounded-lg border border-[#222232] bg-[#0d0d1acc] text-[#888898] hover:text-white hover:border-[#333345] transition-colors flex items-center justify-center"
                   title="Cerrar panel"
                 >
                   <X size={14} />
