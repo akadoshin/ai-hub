@@ -138,18 +138,18 @@ export function FlowPanelOverlay({ mainView, onMainViewChange, activePanel, onPa
         {activePanel && panelMeta && (
           <motion.div
             key={activePanel}
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 30 }}
-            transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="absolute top-0 bottom-0 right-0 w-[min(96vw,420px)] pointer-events-auto"
+            initial={{ opacity: 0, y: 10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.98 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="absolute top-[76px] bottom-3 right-3 w-[min(96vw,430px)] pointer-events-auto"
           >
             <div
-              className="h-full overflow-hidden backdrop-blur-xl"
+              className="h-full rounded-2xl overflow-hidden backdrop-blur-xl"
               style={{
-                borderLeft: `1px solid ${panelMeta.color}35`,
-                background: 'linear-gradient(165deg, rgba(10,10,16,0.96), rgba(6,6,12,0.96))',
-                boxShadow: `0 0 40px rgba(0,0,0,0.5), 0 0 24px ${panelMeta.color}10`,
+                border: `1px solid ${panelMeta.color}35`,
+                background: 'linear-gradient(165deg, rgba(10,10,16,0.94), rgba(6,6,12,0.94))',
+                boxShadow: `0 14px 70px rgba(0,0,0,0.45), 0 0 24px ${panelMeta.color}1f`,
               }}
             >
               {/* Header */}
