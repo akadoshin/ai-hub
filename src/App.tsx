@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { TopBar } from './components/TopBar'
 import { SceneOverlay } from './components/SceneOverlay'
 import { HubScene } from './3d/SolarSystem'
@@ -12,6 +12,21 @@ export default function App() {
   const { loadMockData } = useHubStore()
   const [mainView, setMainView] = useState<MainView>('deck')
   const [activePanel, setActivePanel] = useState<PanelView>(null)
+
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    const target = e.target as HTMLElement | null
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
+    if (e.key === '1') setMainView('deck')
+    else if (e.key === '2') setMainView('graph')
+    else if (e.key === '3') setActivePanel(p => p === 'tasks' ? null : 'tasks')
+    else if (e.key === '4') setActivePanel(p => p === 'gateway' ? null : 'gateway')
+    else if (e.key === '5') setActivePanel(p => p === 'meshy' ? null : 'meshy')
+  }, [])
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleKeyDown])
 
   useEffect(() => {
     initWS()
