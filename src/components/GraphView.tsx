@@ -49,11 +49,13 @@ function buildDetailNodes(
   })
 
   // Col 1: Files — fanning out from agent's right handle
-  const colX = agentPos.x + 340
+  const COL_GAP = 380 // horizontal gap between columns
+  const colX = agentPos.x + COL_GAP
   const fileEntries = detail?.files
     ? Object.entries(detail.files).filter(([, v]) => v !== null)
     : []
-  const totalFileH = fileEntries.length * 55
+  const fileGap = 48
+  const totalFileH = fileEntries.length * fileGap
   let fy = agentPos.y - totalFileH / 2 + 20
 
   for (const [key, content] of fileEntries) {
@@ -69,18 +71,18 @@ function buildDetailNodes(
       type: 'smoothstep',
       style: edgeStyle(color),
     })
-    fy += 55
+    fy += fileGap
   }
 
-  // Col 2: Sessions + Connections — connected from first file node (or agent if no files)
-  const col2X = agentPos.x + 660
+  // Col 2: Sessions + Connections
+  const col2X = agentPos.x + COL_GAP * 2
   const col2Source = fileEntries.length > 0 ? `${pid}:file:${fileEntries[0][0]}` : pid
   const col2SrcHandle = fileEntries.length > 0 ? undefined : 'right'
 
   const sessId = `${pid}:sessions`
   nodes.push({
     id: sessId, type: 'sessionsNode',
-    position: { x: col2X, y: agentPos.y - 160 },
+    position: { x: col2X, y: agentPos.y - 180 },
     data: { sessions: detail?.sessions || [], color: '#60a5fa' },
   })
   edges.push({
@@ -92,7 +94,7 @@ function buildDetailNodes(
   const connId = `${pid}:connections`
   nodes.push({
     id: connId, type: 'connectionsNode',
-    position: { x: col2X, y: agentPos.y + 160 },
+    position: { x: col2X, y: agentPos.y + 180 },
     data: { connections: agentConnections, color: '#00ff88' },
   })
   edges.push({
@@ -101,13 +103,13 @@ function buildDetailNodes(
     style: edgeStyle('#00ff88'),
   })
 
-  // Col 3: Memory + Workspace — connected from sessions node
-  const col3X = agentPos.x + 980
+  // Col 3: Memory + Workspace
+  const col3X = agentPos.x + COL_GAP * 3
 
   const memId = `${pid}:memory`
   nodes.push({
     id: memId, type: 'memoryNode',
-    position: { x: col3X, y: agentPos.y - 160 },
+    position: { x: col3X, y: agentPos.y - 180 },
     data: { memories: detail?.recentMemories || [], color: '#c084fc' },
   })
   edges.push({
@@ -119,7 +121,7 @@ function buildDetailNodes(
   const wsId = `${pid}:workspace`
   nodes.push({
     id: wsId, type: 'workspaceNode',
-    position: { x: col3X, y: agentPos.y + 160 },
+    position: { x: col3X, y: agentPos.y + 180 },
     data: { files: detail?.workspaceFiles || [], color: '#f59e0b' },
   })
   edges.push({
@@ -181,50 +183,85 @@ function GraphInner() {
     setLocalEdges(edges)
   }, [agents, connections, viewState])
 
-  // Re-layout file nodes when one expands/collapses (measure DOM heights)
+  // Re-layout when nodes expand/collapse — adjust Y positions and push columns right
   const handleRelayout = useCallback(() => {
     if (viewState !== 'detail' || !selectedAgent) return
+    const pid = selectedAgent.id
 
-    // Get all file nodes for the selected agent
-    const filePrefix = `${selectedAgent.id}:file:`
-    const fileNodes = localNodes.filter(n => n.id.startsWith(filePrefix))
-    if (fileNodes.length === 0) return
+    setLocalNodes(prev => {
+      const next = [...prev]
 
-    // Measure actual DOM heights
-    const measurements: { id: string; height: number }[] = []
-    for (const fn of fileNodes) {
-      const el = document.querySelector(`[data-id="${fn.id}"]`) as HTMLElement | null
-      if (el) {
-        measurements.push({ id: fn.id, height: el.getBoundingClientRect().height })
+      // 1. Re-stack file nodes vertically based on actual DOM height
+      const filePrefix = `${pid}:file:`
+      const fileIdxs = next
+        .map((n, i) => ({ n, i }))
+        .filter(({ n }) => n.id.startsWith(filePrefix))
+        .sort((a, b) => a.n.position.y - b.n.position.y)
+
+      if (fileIdxs.length > 0) {
+        let currentY = fileIdxs[0].n.position.y
+        const gap = 8
+
+        for (const { n, i } of fileIdxs) {
+          const el = document.querySelector(`[data-id="${n.id}"]`) as HTMLElement | null
+          const h = el ? el.getBoundingClientRect().height : 40
+          next[i] = { ...n, position: { ...n.position, y: currentY } }
+          currentY += h / (reactFlow.getZoom()) + gap
+        }
       }
-    }
-    if (measurements.length === 0) return
 
-    // Sort by current Y position to maintain order
-    const sorted = [...measurements].sort((a, b) => {
-      const na = fileNodes.find(n => n.id === a.id)!
-      const nb = fileNodes.find(n => n.id === b.id)!
-      return na.position.y - nb.position.y
+      // 2. Push col2+ right if file nodes are wide
+      let maxFileRight = 0
+      for (const { n } of fileIdxs) {
+        const el = document.querySelector(`[data-id="${n.id}"]`) as HTMLElement | null
+        if (el) {
+          const w = el.getBoundingClientRect().width / reactFlow.getZoom()
+          const right = n.position.x + w
+          if (right > maxFileRight) maxFileRight = right
+        }
+      }
+
+      if (maxFileRight > 0) {
+        const minColGap = 60 // min gap between file nodes and col2
+        const col2Ids = [`${pid}:sessions`, `${pid}:connections`]
+        const col3Ids = [`${pid}:memory`, `${pid}:workspace`]
+
+        for (let i = 0; i < next.length; i++) {
+          const n = next[i]
+          if (col2Ids.includes(n.id)) {
+            const newX = Math.max(n.position.x, maxFileRight + minColGap)
+            if (newX !== n.position.x) {
+              next[i] = { ...n, position: { ...n.position, x: newX } }
+            }
+          }
+        }
+
+        // Measure col2 max right for col3
+        let maxCol2Right = 0
+        for (let i = 0; i < next.length; i++) {
+          if (col2Ids.includes(next[i].id)) {
+            const el = document.querySelector(`[data-id="${next[i].id}"]`) as HTMLElement | null
+            const w = el ? el.getBoundingClientRect().width / reactFlow.getZoom() : 300
+            const right = next[i].position.x + w
+            if (right > maxCol2Right) maxCol2Right = right
+          }
+        }
+
+        if (maxCol2Right > 0) {
+          for (let i = 0; i < next.length; i++) {
+            if (col3Ids.includes(next[i].id)) {
+              const newX = Math.max(next[i].position.x, maxCol2Right + minColGap)
+              if (newX !== next[i].position.x) {
+                next[i] = { ...next[i], position: { ...next[i].position, x: newX } }
+              }
+            }
+          }
+        }
+      }
+
+      return next
     })
-
-    // Recalculate Y positions with proper spacing
-    const gap = 12
-    const firstNode = fileNodes.find(n => n.id === sorted[0].id)!
-    let currentY = firstNode.position.y
-
-    const newPositions: Record<string, number> = {}
-    for (const m of sorted) {
-      newPositions[m.id] = currentY
-      currentY += m.height + gap
-    }
-
-    setLocalNodes(prev => prev.map(n => {
-      if (newPositions[n.id] !== undefined) {
-        return { ...n, position: { ...n.position, y: newPositions[n.id] } }
-      }
-      return n
-    }))
-  }, [viewState, selectedAgent, localNodes])
+  }, [viewState, selectedAgent, reactFlow])
 
   useOnRelayout(handleRelayout)
 
