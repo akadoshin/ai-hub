@@ -1,6 +1,6 @@
-import { Suspense, useRef, useCallback, useMemo, useState, useEffect } from 'react'
+import { useRef, useCallback, useMemo, useState, useEffect } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { OrbitControls, Html, Sphere, Line, useGLTF } from '@react-three/drei'
+import { OrbitControls, Html, Sphere, Line } from '@react-three/drei'
 import * as THREE from 'three'
 import { useHubStore } from '../store'
 import type { AgentData, Task } from '../store'
@@ -25,9 +25,10 @@ const STATUS_COLOR2: Record<string, string> = {
 const ORBIT_RADII = [0, 12, 22, 32, 42]
 const SCENE_HTML_Z: [number, number] = [0, -10]
 const DETAIL_HTML_Z: [number, number] = [2, -8]
-
-useGLTF.preload('/models/star.glb')
-useGLTF.preload('/models/planet-psych.glb')
+const ORBIT_GRAY = '#8c949d'
+const ORBIT_GRAY_ACTIVE = '#a5adb6'
+const ORBIT_ACCENT = '#9ea7b1'
+const ORBIT_DASH = '#929aa4'
 
 function layoutAgents(agents: AgentData[]): Map<string, { pos: [number, number, number]; orbit: number }> {
   const m = new Map<string, { pos: [number, number, number]; orbit: number }>()
@@ -80,13 +81,13 @@ function SketchGrid() {
         const fade = Math.max(0.2, 1 - dist / range)
         const isMajor = Math.abs(x % (sp * 4)) < 0.1 && Math.abs(z % (sp * 4)) < 0.1
         const isMid = Math.abs(x % (sp * 4)) < 0.1 || Math.abs(z % (sp * 4)) < 0.1
-        als.push(isMajor ? fade * 0.55 : isMid ? fade * 0.32 : fade * 0.12)
-        szs.push(isMajor ? 3.2 : isMid ? 2.0 : 1.3)
+        als.push(isMajor ? fade * 0.42 : isMid ? fade * 0.22 : fade * 0.08)
+        szs.push(isMajor ? 2.8 : isMid ? 1.8 : 1.1)
       }
     }
     return { positions: new Float32Array(pts), alphas: new Float32Array(als), sizes: new Float32Array(szs) }
   }, [])
-  const uniforms = useMemo(() => ({ uColor: { value: new THREE.Color('#3a5268') } }), [])
+  const uniforms = useMemo(() => ({ uColor: { value: new THREE.Color('#31485c') } }), [])
   return (
     <points>
       <bufferGeometry>
@@ -119,17 +120,17 @@ function SketchGridLines() {
     }
     return segs
   }, [])
-  return <group>{lines.map((pts, i) => <Line key={i} points={pts} color="#2a3d50" lineWidth={0.4} transparent opacity={0.07} />)}</group>
+  return <group>{lines.map((pts, i) => <Line key={i} points={pts} color="#243746" lineWidth={0.35} transparent opacity={0.055} />)}</group>
 }
 
 function GroundReference() {
   return (
     <group>
-      <gridHelper args={[180, 72, '#1a3040', '#0e1e2a']} position={[0, -0.16, 0]} />
-      <Line points={[[-92, -0.11, 0], [92, -0.11, 0]]} color="#2a4a60" lineWidth={0.8} transparent opacity={0.14} />
-      <Line points={[[0, -0.11, -92], [0, -0.11, 92]]} color="#2a4a60" lineWidth={0.8} transparent opacity={0.14} />
-      <Line points={[[-64, -0.11, -64], [64, -0.11, 64]]} color="#1e3040" lineWidth={0.5} transparent opacity={0.06} />
-      <Line points={[[-64, -0.11, 64], [64, -0.11, -64]]} color="#1e3040" lineWidth={0.5} transparent opacity={0.06} />
+      <gridHelper args={[180, 72, '#172a38', '#0c1a24']} position={[0, -0.16, 0]} />
+      <Line points={[[-92, -0.11, 0], [92, -0.11, 0]]} color="#294355" lineWidth={0.7} transparent opacity={0.1} />
+      <Line points={[[0, -0.11, -92], [0, -0.11, 92]]} color="#294355" lineWidth={0.7} transparent opacity={0.1} />
+      <Line points={[[-64, -0.11, -64], [64, -0.11, 64]]} color="#1b2d3a" lineWidth={0.45} transparent opacity={0.045} />
+      <Line points={[[-64, -0.11, 64], [64, -0.11, -64]]} color="#1b2d3a" lineWidth={0.45} transparent opacity={0.045} />
     </group>
   )
 }
@@ -156,8 +157,8 @@ function SketchOrbitRing({ radius, color: _color, active }: { radius: number; co
     groupRef.current.rotation.y = clock.elapsedTime * speed
   })
 
-  const ringColor = active ? '#7ec8ff' : '#8da8c0'
-  const accent = active ? '#b8e4ff' : '#aac0d4'
+  const ringColor = active ? ORBIT_GRAY_ACTIVE : ORBIT_GRAY
+  const accent = active ? ORBIT_ACCENT : ORBIT_DASH
 
   return (
     <group ref={groupRef}>
@@ -165,40 +166,32 @@ function SketchOrbitRing({ radius, color: _color, active }: { radius: number; co
       <Line
         points={points}
         color={ringColor}
-        lineWidth={active ? 1.8 : 1.4}
+        lineWidth={active ? 1.85 : 1.45}
         transparent
-        opacity={active ? 0.7 : 0.48}
+        opacity={active ? 0.68 : 0.52}
       />
       {/* Dashed overlay for detail */}
       <Line
         points={points}
         color={accent}
-        lineWidth={active ? 0.9 : 0.6}
+        lineWidth={active ? 0.95 : 0.7}
         transparent
-        opacity={active ? 0.45 : 0.22}
+        opacity={active ? 0.4 : 0.28}
         dashed
         dashSize={1.2}
         gapSize={0.6}
       />
       {active && (
         <>
-          {/* Inner glow trace */}
-          <Line
-            points={points}
-            color={accent}
-            lineWidth={3.5}
-            transparent
-            opacity={0.12}
-          />
           {/* Marker dots */}
-          <Sphere args={[0.18, 8, 8]} position={[radius, 0, 0]}>
-            <meshBasicMaterial color={accent} transparent opacity={0.9} />
+          <Sphere args={[0.14, 8, 8]} position={[radius, 0, 0]}>
+            <meshBasicMaterial color={ringColor} transparent opacity={0.62} />
           </Sphere>
-          <Sphere args={[0.11, 8, 8]} position={[-radius * 0.55, 0, radius * 0.82]}>
-            <meshBasicMaterial color={ringColor} transparent opacity={0.7} />
+          <Sphere args={[0.09, 8, 8]} position={[-radius * 0.55, 0, radius * 0.82]}>
+            <meshBasicMaterial color={ringColor} transparent opacity={0.52} />
           </Sphere>
-          <Sphere args={[0.08, 8, 8]} position={[radius * 0.7, 0, -radius * 0.7]}>
-            <meshBasicMaterial color={ringColor} transparent opacity={0.5} />
+          <Sphere args={[0.07, 8, 8]} position={[radius * 0.7, 0, -radius * 0.7]}>
+            <meshBasicMaterial color={ringColor} transparent opacity={0.36} />
           </Sphere>
         </>
       )}
@@ -394,105 +387,64 @@ function PlanetRing({ size, color, active }: { size: number; color: string; acti
     <group ref={ref} rotation={[Math.PI * 0.45, 0, 0]}>
       <mesh>
         <torusGeometry args={[size * 1.3, 0.02, 8, 80]} />
-        <meshBasicMaterial color={color} transparent opacity={active ? 0.22 : 0.08} />
+        <meshBasicMaterial color={color} transparent opacity={active ? 0.44 : 0.2} />
       </mesh>
       <mesh>
         <torusGeometry args={[size * 1.36, 0.008, 8, 120]} />
-        <meshBasicMaterial color={color} transparent opacity={active ? 0.35 : 0.1} />
+        <meshBasicMaterial color={color} transparent opacity={active ? 0.66 : 0.28} />
       </mesh>
     </group>
   )
 }
 
-function cloneMaterials(material: unknown) {
-  if (!material) return material
-  if (Array.isArray(material)) return material.map((m) => m.clone())
-  return (material as THREE.Material).clone()
-}
-
-function normalizeModel(source: THREE.Object3D, targetDiameter: number) {
-  const root = source.clone(true)
-  root.traverse((obj) => {
-    const mesh = obj as THREE.Mesh
-    if (!mesh.isMesh) return
-    mesh.castShadow = true
-    mesh.receiveShadow = true
-    mesh.material = cloneMaterials(mesh.material) as THREE.Material | THREE.Material[]
-  })
-
-  const box = new THREE.Box3().setFromObject(root)
-  const size = new THREE.Vector3()
-  box.getSize(size)
-  const maxDim = Math.max(size.x, size.y, size.z) || 1
-  const scale = targetDiameter / maxDim
-  root.scale.setScalar(scale)
-
-  const centered = new THREE.Box3().setFromObject(root)
-  const center = new THREE.Vector3()
-  centered.getCenter(center)
-  root.position.sub(center)
-  return root
-}
-
-function tintModel(root: THREE.Object3D, color: string, emissiveIntensity: number) {
-  const c = new THREE.Color(color)
-  root.traverse((obj) => {
-    const mesh = obj as THREE.Mesh
-    if (!mesh.isMesh) return
-    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-    mats.forEach((m) => {
-      const mat = m as THREE.MeshStandardMaterial
-      if ('emissive' in mat && mat.emissive) {
-        mat.emissive.set(c)
-        mat.emissiveIntensity = emissiveIntensity
-      }
-      if ('roughness' in mat) mat.roughness = Math.min(0.9, Math.max(0.15, (mat.roughness ?? 0.5) * 0.8))
-      if ('metalness' in mat) mat.metalness = Math.max(0.08, mat.metalness ?? 0.2)
-      mat.needsUpdate = true
-    })
-  })
-}
-
-function AgentPlanetModel({ isMain, size, color, active }: {
-  isMain: boolean
+function PlanetSurface({ size, color, color2, active, isMain }: {
   size: number
   color: string
+  color2: string
   active: boolean
+  isMain: boolean
 }) {
-  const star = useGLTF('/models/star.glb') as { scene: THREE.Object3D }
-  const psych = useGLTF('/models/planet-psych.glb') as { scene: THREE.Object3D }
-  const source = isMain ? star.scene : psych.scene
-  const model = useMemo(
-    () => normalizeModel(source, isMain ? size * 2.3 : size * 1.9),
-    [source, isMain, size],
-  )
-
-  useEffect(() => {
-    tintModel(model, color, active ? (isMain ? 0.42 : 0.28) : (isMain ? 0.2 : 0.11))
-  }, [model, color, active, isMain])
-
   return (
-    <group rotation={[0, Math.PI, 0]}>
-      <primitive object={model} />
+    <group>
+      <mesh>
+        <icosahedronGeometry args={[size * 0.9, 6]} />
+        <meshStandardMaterial
+          color={color2}
+          emissive={color}
+          emissiveIntensity={active ? (isMain ? 0.42 : 0.3) : 0.14}
+          roughness={0.28}
+          metalness={0.52}
+        />
+      </mesh>
+      <mesh>
+        <icosahedronGeometry args={[size * 0.93, 2]} />
+        <meshBasicMaterial color={color} wireframe transparent opacity={active ? 0.26 : 0.11} />
+      </mesh>
     </group>
   )
 }
 
-function MoonBodyModel({ diameter, color, active }: {
-  diameter: number
+function MoonSurface({ radius, color, active }: {
+  radius: number
   color: string
   active: boolean
 }) {
-  const psych = useGLTF('/models/planet-psych.glb') as { scene: THREE.Object3D }
-  const model = useMemo(() => normalizeModel(psych.scene, diameter), [psych.scene, diameter])
-
-  useEffect(() => {
-    tintModel(model, color, active ? 0.36 : 0.13)
-  }, [model, color, active])
-
   return (
-    <group rotation={[0, Math.PI * 0.6, 0]}>
-      <primitive object={model} />
+    <group>
+      <mesh>
+        <icosahedronGeometry args={[radius, 4]} />
+        <meshStandardMaterial
+          color={active ? '#d4dee8' : '#9aa8b6'}
+          emissive={color}
+          emissiveIntensity={active ? 0.52 : 0.18}
+          roughness={0.4}
+          metalness={0.32}
+        />
+      </mesh>
+      <mesh>
+        <icosahedronGeometry args={[radius * 1.07, 1]} />
+        <meshBasicMaterial color={color} wireframe transparent opacity={active ? 0.5 : 0.2} />
+      </mesh>
     </group>
   )
 }
@@ -541,10 +493,10 @@ function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, cron
         onPointerEnter={() => setHovered(true)}
         onPointerLeave={() => setHovered(false)}
       >
-        {/* Model-based planet body */}
-        <AgentPlanetModel isMain={isMain} size={size} color={c} active={isActive} />
-        <LiquidCore size={size * 0.68} color={c} color2={c2} active={isActive} />
-        {highlight && <WireframeShell size={size * 1.05} color={c} active={isActive} />}
+        {/* Planet body */}
+        <PlanetSurface size={size} color={c} color2={c2} active={isActive} isMain={isMain} />
+        <LiquidCore size={size * 0.66} color={c} color2={c2} active={isActive} />
+        {highlight && <WireframeShell size={size * 1.03} color={c} active={isActive} />}
 
         {/* Hot center glow */}
         <Sphere args={[size * 0.15, 12, 12]}>
@@ -557,13 +509,13 @@ function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, cron
 
         {/* Atmosphere layers */}
         <Sphere args={[size * 1.15, 32, 32]}>
-          <meshBasicMaterial color={c} transparent opacity={isActive ? 0.18 : 0.06} side={THREE.BackSide} />
+          <meshBasicMaterial color={c} transparent opacity={isActive ? 0.24 : 0.1} side={THREE.BackSide} />
         </Sphere>
         <Sphere args={[size * 1.35, 24, 24]}>
-          <meshBasicMaterial color={c} transparent opacity={isActive ? 0.09 : 0.03} side={THREE.BackSide} />
+          <meshBasicMaterial color={c} transparent opacity={isActive ? 0.14 : 0.055} side={THREE.BackSide} />
         </Sphere>
         <Sphere ref={auraRef} args={[size * 1.65, 20, 20]}>
-          <meshBasicMaterial color={c} transparent opacity={isActive ? 0.14 : 0.05} side={THREE.BackSide} />
+          <meshBasicMaterial color={c} transparent opacity={isActive ? 0.2 : 0.08} side={THREE.BackSide} />
         </Sphere>
 
         {/* Equatorial ring */}
@@ -654,7 +606,7 @@ function Moon({ cron, index, total, planetSize }: {
   const speed = 0.3 / (1 + index * 0.15)
   const base = (index / Math.max(total, 1)) * Math.PI * 2
   const isRunning = cron.status === 'running'
-  const mc = isRunning ? '#7cc0ff' : '#5d7488'
+  const mc = isRunning ? '#8ea8bf' : '#7b8794'
   const tilt = 0.15 + index * 0.1
 
   useFrame(({ clock }) => {
@@ -685,14 +637,14 @@ function Moon({ cron, index, total, planetSize }: {
   return (
     <group>
       {/* Moon orbit path */}
-      <Line points={orbitPts} color={mc} lineWidth={0.6} transparent opacity={isRunning ? 0.22 : 0.09} dashed dashSize={0.3} gapSize={0.2} />
+      <Line points={orbitPts} color={ORBIT_GRAY} lineWidth={1.0} transparent opacity={isRunning ? 0.48 : 0.3} dashed dashSize={0.3} gapSize={0.2} />
 
       <group ref={ref}>
-        <MoonBodyModel diameter={0.58} color={mc} active={isRunning} />
+        <MoonSurface radius={0.24} color={mc} active={isRunning} />
         {/* Wireframe shell */}
         <mesh ref={shellRef}>
-          <icosahedronGeometry args={[0.31, 1]} />
-          <meshBasicMaterial color={mc} wireframe transparent opacity={isRunning ? 0.72 : 0.28} />
+          <icosahedronGeometry args={[0.3, 1]} />
+          <meshBasicMaterial color={mc} wireframe transparent opacity={isRunning ? 0.52 : 0.2} />
         </mesh>
         {/* Orbiting ring */}
         <mesh rotation={[Math.PI * 0.52 + index * 0.06, 0, 0]}>
@@ -1378,9 +1330,7 @@ export function HubScene({
     >
       <Canvas camera={{ position: [0, 16, 30], fov: 48, near: 0.1, far: 300 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }} dpr={[1, 1.5]} style={{ background: '#03060c', zIndex: 0 }}>
-        <Suspense fallback={null}>
-          <Scene activeFlow={activeFlow} onFlowChange={onFlowChange} />
-        </Suspense>
+        <Scene activeFlow={activeFlow} onFlowChange={onFlowChange} />
       </Canvas>
       {/* Back button when focused */}
       {focusedAgent && (

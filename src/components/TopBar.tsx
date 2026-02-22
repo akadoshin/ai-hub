@@ -10,7 +10,7 @@ export function TopBar({ activeFlow }: { activeFlow: FlowView }) {
 
   return (
     <Spotlight className="shrink-0 z-10" spotlightColor="rgba(0,255,136,0.04)">
-      <div className="h-14 bg-[#0a0a10] border-b border-[#1a1a22] flex items-center px-5 gap-6">
+      <div className="h-14 border-b border-[#1b2230] flex items-center px-5 gap-6" style={{ background: 'rgba(7,11,18,0.97)', backdropFilter: 'blur(12px)' }}>
         {/* Logo */}
         <div className="flex items-center gap-2.5 mr-3">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#00ff88] to-[#00cc6a] flex items-center justify-center shadow-[0_0_20px_rgba(0,255,136,0.2)]">
@@ -21,7 +21,7 @@ export function TopBar({ activeFlow }: { activeFlow: FlowView }) {
           </span>
         </div>
 
-        <div className="w-px h-6 bg-[#1a1a22]" />
+        <div className="w-px h-6 bg-[#1b2230]" />
 
         {/* Stats */}
         <Stat icon={<Bot size={14} />} label="Agents" value={stats.totalAgents} />
