@@ -26,6 +26,7 @@ function SpotlightNode({ children, color, className = '' }: {
       <div className="pointer-events-none absolute -inset-px transition-opacity duration-300"
         style={{ opacity: hovered ? 1 : 0, background: `radial-gradient(200px circle at ${pos.x}px ${pos.y}px, ${color}12, transparent 60%)` }} />
       <Handle type="target" position={Position.Left} style={{ background: color + '40', border: 'none', width: 5, height: 5 }} />
+      <Handle type="source" position={Position.Right} style={{ background: color + '40', border: 'none', width: 5, height: 5 }} />
       <div className="relative z-10">{children}</div>
     </div>
   )

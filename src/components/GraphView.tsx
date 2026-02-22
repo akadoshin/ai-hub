@@ -43,100 +43,88 @@ function buildDetailNodes(
     data: agent,
   })
 
-  // Detail nodes fan out to the right of the agent node
-  let y = agentPos.y - 100
-  const colX = agentPos.x + 320
+  const edgeStyle = (c: string) => ({
+    stroke: c + '20', strokeWidth: 1, strokeDasharray: '4 4',
+  })
 
-  // Files — individual file nodes
-  if (detail?.files) {
-    const fileEntries = Object.entries(detail.files).filter(([, v]) => v !== null)
-    for (const [key, content] of fileEntries) {
-      const nid = `${pid}:file:${key}`
-      nodes.push({
-        id: nid,
-        type: 'fileNode',
-        position: { x: colX, y },
-        data: { name: `${key.toUpperCase()}.md`, content, color },
-      })
-      edges.push({
-        id: `e:${pid}→${nid}`,
-        source: pid,
-        target: nid,
-        style: { stroke: color + '15', strokeWidth: 1, strokeDasharray: '4 4' },
-      })
-      y += 55
-    }
+  // Col 1: Files — fanning out from agent's right handle
+  const colX = agentPos.x + 340
+  const fileEntries = detail?.files
+    ? Object.entries(detail.files).filter(([, v]) => v !== null)
+    : []
+  const totalFileH = fileEntries.length * 55
+  let fy = agentPos.y - totalFileH / 2 + 20
+
+  for (const [key, content] of fileEntries) {
+    const nid = `${pid}:file:${key}`
+    nodes.push({
+      id: nid, type: 'fileNode',
+      position: { x: colX, y: fy },
+      data: { name: `${key.toUpperCase()}.md`, content, color },
+    })
+    edges.push({
+      id: `e:${pid}→${nid}`, source: pid, target: nid,
+      sourceHandle: 'right',
+      type: 'smoothstep',
+      style: edgeStyle(color),
+    })
+    fy += 55
   }
 
-  // Second column
-  let y2 = agentPos.y - 100
-  const col2X = agentPos.x + 640
+  // Col 2: Sessions + Connections — connected from first file node (or agent if no files)
+  const col2X = agentPos.x + 660
+  const col2Source = fileEntries.length > 0 ? `${pid}:file:${fileEntries[0][0]}` : pid
+  const col2SrcHandle = fileEntries.length > 0 ? undefined : 'right'
 
-  // Sessions
   const sessId = `${pid}:sessions`
   nodes.push({
-    id: sessId,
-    type: 'sessionsNode',
-    position: { x: col2X, y: y2 },
+    id: sessId, type: 'sessionsNode',
+    position: { x: col2X, y: agentPos.y - 160 },
     data: { sessions: detail?.sessions || [], color: '#60a5fa' },
   })
   edges.push({
-    id: `e:${pid}→${sessId}`,
-    source: pid,
-    target: sessId,
-    style: { stroke: '#60a5fa15', strokeWidth: 1 },
+    id: `e:→${sessId}`, source: col2Source, target: sessId,
+    sourceHandle: col2SrcHandle, type: 'smoothstep',
+    style: edgeStyle('#60a5fa'),
   })
-  y2 += 280
 
-  // Connections
   const connId = `${pid}:connections`
   nodes.push({
-    id: connId,
-    type: 'connectionsNode',
-    position: { x: col2X, y: y2 },
+    id: connId, type: 'connectionsNode',
+    position: { x: col2X, y: agentPos.y + 160 },
     data: { connections: agentConnections, color: '#00ff88' },
   })
   edges.push({
-    id: `e:${pid}→${connId}`,
-    source: pid,
-    target: connId,
-    style: { stroke: '#00ff8815', strokeWidth: 1 },
+    id: `e:→${connId}`, source: col2Source, target: connId,
+    sourceHandle: col2SrcHandle, type: 'smoothstep',
+    style: edgeStyle('#00ff88'),
   })
-  y2 += 180
 
-  // Third column
-  let y3 = agentPos.y - 100
-  const col3X = agentPos.x + 960
+  // Col 3: Memory + Workspace — connected from sessions node
+  const col3X = agentPos.x + 980
 
-  // Memory
   const memId = `${pid}:memory`
   nodes.push({
-    id: memId,
-    type: 'memoryNode',
-    position: { x: col3X, y: y3 },
+    id: memId, type: 'memoryNode',
+    position: { x: col3X, y: agentPos.y - 160 },
     data: { memories: detail?.recentMemories || [], color: '#c084fc' },
   })
   edges.push({
-    id: `e:${pid}→${memId}`,
-    source: pid,
-    target: memId,
-    style: { stroke: '#c084fc15', strokeWidth: 1 },
+    id: `e:→${memId}`, source: sessId, target: memId,
+    type: 'smoothstep',
+    style: edgeStyle('#c084fc'),
   })
-  y3 += 280
 
-  // Workspace
   const wsId = `${pid}:workspace`
   nodes.push({
-    id: wsId,
-    type: 'workspaceNode',
-    position: { x: col3X, y: y3 },
+    id: wsId, type: 'workspaceNode',
+    position: { x: col3X, y: agentPos.y + 160 },
     data: { files: detail?.workspaceFiles || [], color: '#f59e0b' },
   })
   edges.push({
-    id: `e:${pid}→${wsId}`,
-    source: pid,
-    target: wsId,
-    style: { stroke: '#f59e0b15', strokeWidth: 1 },
+    id: `e:→${wsId}`, source: connId, target: wsId,
+    type: 'smoothstep',
+    style: edgeStyle('#f59e0b'),
   })
 
   return { nodes, edges }
@@ -224,7 +212,6 @@ function GraphInner() {
 
   // Exit back to agents
   const exitAgent = useCallback(() => {
-    // Grab the agent node's current position before we clear detail nodes
     const agentId = selectedAgent?.id
     const currentAgentNode = agentId ? localNodes.find(n => n.id === agentId) : null
     if (currentAgentNode && agentId) {
@@ -233,20 +220,25 @@ function GraphInner() {
     }
 
     setViewState('transitioning')
-    setSelectedAgent(null)
-    setAgentDetail(null)
 
-    const { nodes, edges } = buildAgentGraph()
-    setLocalNodes(nodes.map(n => {
+    // Step 1: Remove detail nodes but keep agent nodes (collapse effect)
+    const { nodes: agentNodes, edges: agentEdges } = buildAgentGraph()
+    const restored = agentNodes.map(n => {
       if (savedPos.current[n.id]) return { ...n, position: savedPos.current[n.id] }
       return n
-    }))
-    setLocalEdges(edges)
-    setViewState('agents')
+    })
 
+    // Brief pause to let the detail nodes disappear visually
+    setLocalEdges(agentEdges)
+    setLocalNodes(restored)
+
+    // Step 2: Smooth zoom out to show all agents
     setTimeout(() => {
-      reactFlow.fitView({ padding: 0.3, duration: 500 })
-    }, 50)
+      setSelectedAgent(null)
+      setAgentDetail(null)
+      setViewState('agents')
+      reactFlow.fitView({ padding: 0.3, duration: 600 })
+    }, 100)
   }, [buildAgentGraph, reactFlow, selectedAgent, localNodes])
 
   const onNodeClick: NodeMouseHandler = useCallback((_, node) => {
