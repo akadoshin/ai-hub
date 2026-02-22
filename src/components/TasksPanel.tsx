@@ -3,6 +3,7 @@ import type { Task } from '../store'
 import { CheckCircle, XCircle, Loader, Clock } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MovingBorder } from '../ui/moving-border'
+import { Card3D } from '../ui/3d-card'
 
 function fmtElapsed(ms: number) {
   const s = Math.floor(ms / 1000)
@@ -68,7 +69,7 @@ function TaskCard({ task }: { task: Task }) {
   if (task.status === 'running') {
     return <MovingBorder borderColor={cfg.color} duration={4} className="bg-[#0a0a10]">{card}</MovingBorder>
   }
-  return card
+  return <Card3D glowColor={cfg.color}>{card}</Card3D>
 }
 
 export function TasksPanel({ sidebar: _sidebar }: { sidebar?: boolean }) {

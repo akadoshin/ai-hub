@@ -4,6 +4,7 @@ import { OrbitControls, Html, Sphere, Line, Trail } from '@react-three/drei'
 import * as THREE from 'three'
 import { useHubStore } from '../store'
 import type { AgentData, Task, Connection } from '../store'
+import { Card3D } from '../ui/3d-card'
 
 // ── Palette ──
 const ACCENT = '#00ff88'
@@ -796,30 +797,33 @@ function DetailPanels({ agent, detail, size, color }: {
             <Html center style={{ pointerEvents: 'auto', userSelect: 'text' }}
               rotation={[0, -a + Math.PI / 2, 0]}
               position={[0, 1, 0]}>
-              <div style={{
-                width: 260, maxHeight: 320, overflow: 'auto',
-                background: '#080810f0', border: `1px solid ${color}25`,
-                borderRadius: 8, padding: '10px 14px',
-                fontFamily: "'JetBrains Mono', monospace",
-                boxShadow: `0 0 20px ${color}08`,
-                scrollbarWidth: 'thin',
-                scrollbarColor: `${color}30 transparent`,
-              }}>
+              <Card3D glowColor={color} className="group">
                 <div style={{
-                  fontSize: 10, color, fontWeight: 700, letterSpacing: '0.1em',
-                  borderBottom: `1px solid ${color}20`, paddingBottom: 4, marginBottom: 6,
-                  display: 'flex', alignItems: 'center', gap: 6,
+                  width: 260, maxHeight: 320, overflow: 'auto',
+                  background: '#080810f0', border: `1px solid ${color}25`,
+                  borderRadius: 12, padding: '10px 14px',
+                  fontFamily: "'JetBrains Mono', monospace",
+                  boxShadow: `0 0 20px ${color}08`,
+                  scrollbarWidth: 'thin',
+                  scrollbarColor: `${color}30 transparent`,
+                  transition: 'border-color 0.3s, box-shadow 0.3s',
                 }}>
-                  <span>{panel.icon}</span>
-                  {panel.title}
+                  <div style={{
+                    fontSize: 10, color, fontWeight: 700, letterSpacing: '0.1em',
+                    borderBottom: `1px solid ${color}20`, paddingBottom: 4, marginBottom: 6,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}>
+                    <span>{panel.icon}</span>
+                    {panel.title}
+                  </div>
+                  <pre style={{
+                    fontSize: 8, color: '#aaa', margin: 0, whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word', lineHeight: 1.5,
+                  }}>
+                    {panel.content.slice(0, 1500)}
+                  </pre>
                 </div>
-                <pre style={{
-                  fontSize: 8, color: '#aaa', margin: 0, whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word', lineHeight: 1.5,
-                }}>
-                  {panel.content.slice(0, 1500)}
-                </pre>
-              </div>
+              </Card3D>
             </Html>
             {/* Connecting line to planet center */}
             <Line points={[[0, 0, 0], [-x, 0, -z]]} color={color} lineWidth={0.4} transparent opacity={0.08} dashed dashSize={0.3} gapSize={0.2} />
