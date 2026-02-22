@@ -1,6 +1,6 @@
-import { useRef, useCallback, useMemo, useState, useEffect, type ReactNode } from 'react'
+import { useRef, useCallback, useMemo, useState, useEffect, Suspense, type ReactNode } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { OrbitControls, Html, Sphere, Line } from '@react-three/drei'
+import { OrbitControls, Html, Sphere, Line, useGLTF, Center } from '@react-three/drei'
 import * as THREE from 'three'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useHubStore } from '../store'
@@ -22,6 +22,16 @@ const STATUS_COLOR2: Record<string, string> = {
   idle: '#151520',
   error: '#3a0a0a',
 }
+
+// ── Per-agent Meshy planet models (agentId → GLB path) ──
+// Generated with Meshy text-to-3d, each reflects the agent's personality
+const PLANET_MODELS: Record<string, string> = {
+  main:  '/models/planets/main.glb',   // Eugenio — cosmic green plasma star
+  psych: '/models/planets/psych.glb',  // Psych   — dark violet surveillance world
+}
+
+// Preload all planet models
+Object.values(PLANET_MODELS).forEach(p => useGLTF.preload(p))
 
 const ORBIT_RADII = [0, 17, 33, 48, 63]
 const SCENE_HTML_Z: [number, number] = [26, 10]
@@ -898,6 +908,26 @@ function MoonSurface({ radius, color, active }: {
   )
 }
 
+// ── GLB planet surface — replaces procedural PlanetSurface when a model exists ──
+function PlanetGLBSurface({ size, modelPath }: { size: number; modelPath: string }) {
+  const { scene } = useGLTF(modelPath)
+
+  // Compute scale to fit within size * 0.9 radius (= size * 1.8 diameter)
+  const scaleFactor = useMemo(() => {
+    const box = new THREE.Box3().setFromObject(scene)
+    const dim = new THREE.Vector3()
+    box.getSize(dim)
+    const maxDim = Math.max(dim.x, dim.y, dim.z) || 1
+    return (size * 1.8) / maxDim
+  }, [scene, size])
+
+  return (
+    <Center>
+      <primitive object={scene} scale={scaleFactor} />
+    </Center>
+  )
+}
+
 // ── Planet ──
 function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, crons, connections, runningLoad, focusMode }: {
   agent: AgentData; position: [number, number, number]; orbit: number
@@ -944,7 +974,14 @@ function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, cron
         onPointerLeave={() => setHovered(false)}
       >
         {/* Planet body */}
-        <PlanetSurface size={size} color={c} color2={c2} active={isExecuting} isMain={isMain} />
+        {/* Planet body — use Meshy GLB if available, fallback to procedural */}
+        {PLANET_MODELS[agent.id] ? (
+          <Suspense fallback={<PlanetSurface size={size} color={c} color2={c2} active={isExecuting} isMain={isMain} />}>
+            <PlanetGLBSurface size={size} modelPath={PLANET_MODELS[agent.id]} />
+          </Suspense>
+        ) : (
+          <PlanetSurface size={size} color={c} color2={c2} active={isExecuting} isMain={isMain} />
+        )}
         <LiquidCore size={size * 0.72} color={c} color2={c2} active={isExecuting} />
         {highlight && <WireframeShell size={size * 1.03} color={c} active={isExecuting} />}
 
