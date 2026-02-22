@@ -28,7 +28,10 @@ const PANEL_ICON: Record<Exclude<PanelView, null>, React.ReactNode> = {
 const MAIN_VIEWS: MainView[] = ['deck', 'graph']
 const PANELS: Exclude<PanelView, null>[] = ['tasks', 'gateway', 'meshy']
 
-// Kept for any external consumers
+// Panel width constant — used to shrink graph area
+const PANEL_W = 442 // 430px + 12px gap
+
+// Kept for external consumers
 const DOCK_LEFT_MD = 64
 const DOCK_LEFT_LG = 144
 
@@ -68,24 +71,33 @@ function GraphCard({ onClose }: { onClose: () => void }) {
   )
 }
 
+/**
+ * SidePanelCard
+ *
+ * fullHeight=true  → fills all available vertical space (h-full)
+ * fullHeight=false → height driven by content; when content exceeds maxH → scrolls
+ */
 function SidePanelCard({
   panel,
   meta,
   onClose,
+  fullHeight,
 }: {
   panel: Exclude<PanelView, null>
   meta: (typeof PANEL_META)[Exclude<PanelView, null>]
   onClose: () => void
+  fullHeight: boolean
 }) {
   return (
     <div
-      className="h-full rounded-2xl overflow-hidden backdrop-blur-xl flex flex-col"
+      className={`rounded-2xl overflow-hidden backdrop-blur-xl flex flex-col ${fullHeight ? 'h-full' : ''}`}
       style={{
         border: `1px solid ${meta.color}35`,
         background: 'linear-gradient(165deg, rgba(10,10,16,0.94), rgba(6,6,12,0.94))',
         boxShadow: `0 14px 70px rgba(0,0,0,0.45), 0 0 24px ${meta.color}1f`,
       }}
     >
+      {/* Header — always visible */}
       <div className="h-12 px-4 border-b border-[#1a1a22] flex items-center justify-between bg-[#0a0a10cc] shrink-0">
         <div className="flex items-center gap-2.5 min-w-0">
           <span style={{ color: meta.color }}>{PANEL_ICON[panel]}</span>
@@ -102,7 +114,18 @@ function SidePanelCard({
           <X size={14} />
         </button>
       </div>
-      <div className="flex-1 overflow-hidden">
+
+      {/* Content
+          fullHeight → flex-1 + min-h-0 → fills space, inner items scroll
+          auto       → max-h caps growth, overflow-y scrolls         */}
+      <div
+        className={
+          fullHeight
+            ? 'flex-1 min-h-0 overflow-y-auto'
+            : 'overflow-y-auto'
+        }
+        style={fullHeight ? undefined : { maxHeight: 'calc(100vh - 160px)' }}
+      >
         <PanelContent panel={panel} />
       </div>
     </div>
@@ -111,6 +134,8 @@ function SidePanelCard({
 
 export function FlowPanelOverlay({ mainView, onMainViewChange, activePanel, onPanelChange }: Props) {
   const panelMeta = activePanel ? PANEL_META[activePanel] : null
+  // Sidepanel gets full height when graph is also open
+  const panelFullHeight = mainView === 'graph' && activePanel !== null
 
   return (
     <div className="absolute inset-0 pointer-events-none z-40">
@@ -157,22 +182,38 @@ export function FlowPanelOverlay({ mainView, onMainViewChange, activePanel, onPa
         {activePanel && panelMeta && (
           <motion.div
             key={`mobile-${activePanel}`}
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
+            exit={{ opacity: 0, y: 12 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
             className="md:hidden absolute top-3 bottom-[64px] left-3 right-3 pointer-events-auto"
           >
-            <SidePanelCard panel={activePanel} meta={panelMeta} onClose={() => onPanelChange(null)} />
+            <SidePanelCard panel={activePanel} meta={panelMeta} fullHeight onClose={() => onPanelChange(null)} />
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── Desktop layout: flex row [dock | graph? | panel?] ── */}
-      {/*    top-[68px] = gap below TopBar; all windows share the same row */}
-      <div className="hidden md:flex absolute top-[68px] bottom-3 left-3 right-3 gap-3">
+      {/* ══════════════════════════════════════════════════════════════
+          Desktop layout  (md+)
 
-        {/* Left dock — always visible on desktop */}
+          Structure:
+            absolute row: [dock (self-start)] [graph (flex-1, full-height)]
+            absolute pos:                                 [sidepanel (bottom-right)]
+
+          The sidepanel lives OUTSIDE the dock+graph flex row so it always
+          anchors to the bottom-right corner of the screen.
+          The graph area transitions its right edge to make room for the panel.
+         ══════════════════════════════════════════════════════════════ */}
+
+      {/* Dock + Graph flex row */}
+      <div
+        className="hidden md:flex absolute top-[68px] bottom-3 left-3 gap-3 pointer-events-none"
+        style={{
+          right: activePanel ? PANEL_W + 12 : 12,
+          transition: 'right 0.25s ease',
+        }}
+      >
+        {/* Left dock — self-start so buttons don't stretch vertically */}
         <div className="flex flex-col gap-3 pointer-events-auto shrink-0 self-start">
           {MAIN_VIEWS.map((v) => {
             const meta = MAIN_VIEW_META[v]
@@ -219,47 +260,53 @@ export function FlowPanelOverlay({ mainView, onMainViewChange, activePanel, onPa
           })}
         </div>
 
-        {/* Right area: graph window + sidepanel, same row */}
-        <div className="flex flex-1 gap-3 min-w-0 min-h-0">
-
-          {/* Graph window — expands to fill remaining width */}
-          <AnimatePresence>
-            {mainView === 'graph' && (
-              <motion.div
-                key="graph-panel"
-                initial={{ opacity: 0, scale: 0.98, y: 6 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.98, y: 6 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="flex-1 min-w-0 h-full pointer-events-auto"
-              >
-                <GraphCard onClose={() => onMainViewChange('deck')} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Sidepanel — fixed width, shrink-0 */}
-          <AnimatePresence>
-            {activePanel && panelMeta && (
-              <motion.div
-                key={activePanel}
-                initial={{ opacity: 0, scale: 0.98, y: 6 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.98, y: 6 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="w-[min(60vw,430px)] shrink-0 h-full pointer-events-auto"
-              >
-                <SidePanelCard panel={activePanel} meta={panelMeta} onClose={() => onPanelChange(null)} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-        </div>
+        {/* Graph window — fills remaining width, full height */}
+        <AnimatePresence>
+          {mainView === 'graph' && (
+            <motion.div
+              key="graph-panel"
+              initial={{ opacity: 0, scale: 0.98, y: 6 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: 6 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="flex-1 min-w-0 h-full pointer-events-auto"
+            >
+              <GraphCard onClose={() => onMainViewChange('deck')} />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
+
+      {/* Sidepanel — always anchored bottom-right, independent of graph row */}
+      <AnimatePresence>
+        {activePanel && panelMeta && (
+          <motion.div
+            key={activePanel}
+            initial={{ opacity: 0, y: 16, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.98 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="hidden md:block absolute bottom-3 right-3 pointer-events-auto"
+            style={{
+              width: 430,
+              // full height when graph is open; auto (content-driven) otherwise
+              ...(panelFullHeight
+                ? { top: 68 }
+                : { top: 'auto' }),
+            }}
+          >
+            <SidePanelCard
+              panel={activePanel}
+              meta={panelMeta}
+              fullHeight={panelFullHeight}
+              onClose={() => onPanelChange(null)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   )
 }
 
-// Kept for external consumers
 export { DOCK_LEFT_MD, DOCK_LEFT_LG }
