@@ -1,6 +1,7 @@
 import { useHubStore } from '../store'
-import { Bot, Activity, MessageSquare, Link2, Wifi, WifiOff } from 'lucide-react'
+import { Activity, MessageSquare, Link2, Wifi, WifiOff, Bot } from 'lucide-react'
 import { Spotlight } from '../ui/spotlight'
+import { LogoScene } from './LogoScene'
 import type { MainView } from '../types/flows'
 import { MAIN_VIEW_META } from '../types/flows'
 
@@ -11,11 +12,9 @@ export function TopBar({ mainView }: { mainView: MainView }) {
   return (
     <Spotlight className="shrink-0 z-10" spotlightColor="rgba(0,255,136,0.04)">
       <div className="h-14 border-b border-[#1a1a22] flex items-center px-5 gap-6" style={{ background: 'rgba(10,10,16,0.97)', backdropFilter: 'blur(12px)' }}>
-        {/* Logo */}
+        {/* Logo 3D */}
         <div className="flex items-center gap-2.5 mr-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#00ff88] to-[#00cc6a] flex items-center justify-center shadow-[0_0_20px_rgba(0,255,136,0.2)]">
-            <Bot size={18} color="#040407" strokeWidth={2.5} />
-          </div>
+          <LogoScene />
           <span className="text-base font-extrabold text-white tracking-tight">
             AI Hub
           </span>

@@ -88,27 +88,45 @@ function SidePanelCard({
   onClose: () => void
   fullHeight: boolean
 }) {
+  const isMeshy = panel === 'meshy'
+
   return (
     <div
       className={`rounded-2xl overflow-hidden backdrop-blur-xl flex flex-col ${fullHeight ? 'h-full' : ''}`}
       style={{
-        border: `1px solid ${meta.color}35`,
-        background: 'linear-gradient(165deg, rgba(10,10,16,0.94), rgba(6,6,12,0.94))',
-        boxShadow: `0 14px 70px rgba(0,0,0,0.45), 0 0 24px ${meta.color}1f`,
+        border: isMeshy ? '1px solid rgba(197,249,85,0.28)' : `1px solid ${meta.color}35`,
+        background: isMeshy
+          ? 'linear-gradient(165deg, rgba(12,14,19,0.96), rgba(8,9,12,0.97))'
+          : 'linear-gradient(165deg, rgba(10,10,16,0.94), rgba(6,6,12,0.94))',
+        boxShadow: isMeshy
+          ? '0 16px 80px rgba(0,0,0,0.55), 0 0 36px rgba(197,249,85,0.12), 0 0 26px rgba(255,62,143,0.08)'
+          : `0 14px 70px rgba(0,0,0,0.45), 0 0 24px ${meta.color}1f`,
       }}
     >
       {/* Header — always visible */}
-      <div className="h-12 px-4 border-b border-[#1a1a22] flex items-center justify-between bg-[#0a0a10cc] shrink-0">
+      <div
+        className="h-12 px-4 border-b flex items-center justify-between shrink-0"
+        style={{
+          borderBottomColor: isMeshy ? 'rgba(197,249,85,0.25)' : '#1a1a22',
+          background: isMeshy
+            ? 'linear-gradient(90deg, rgba(197,249,85,0.10), rgba(255,62,143,0.09) 55%, rgba(10,10,16,0.90))'
+            : '#0a0a10cc',
+        }}
+      >
         <div className="flex items-center gap-2.5 min-w-0">
-          <span style={{ color: meta.color }}>{PANEL_ICON[panel]}</span>
+          <span style={{ color: isMeshy ? '#c5f955' : meta.color }}>{PANEL_ICON[panel]}</span>
           <div className="min-w-0">
             <div className="text-[11px] font-semibold text-[#ddddee] tracking-wide truncate">{meta.label}</div>
-            <div className="text-[9px] text-[#555568] font-mono truncate">{meta.hint}</div>
+            <div className="text-[9px] font-mono truncate" style={{ color: isMeshy ? '#8a9580' : '#555568' }}>{meta.hint}</div>
           </div>
         </div>
         <button
           onClick={onClose}
-          className="w-8 h-8 rounded-lg border border-[#222232] bg-[#0d0d1acc] text-[#888898] hover:text-white hover:border-[#333345] transition-colors flex items-center justify-center"
+          className={`w-8 h-8 rounded-lg border transition-colors flex items-center justify-center ${
+            isMeshy
+              ? 'border-[#384a28] bg-[#182015cc] text-[#c5f955] hover:text-[#ecffb5] hover:border-[#5a743e]'
+              : 'border-[#222232] bg-[#0d0d1acc] text-[#888898] hover:text-white hover:border-[#333345]'
+          }`}
           title="Cerrar panel"
         >
           <X size={14} />
