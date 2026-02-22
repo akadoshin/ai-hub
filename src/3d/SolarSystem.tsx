@@ -23,23 +23,26 @@ const STATUS_COLOR2: Record<string, string> = {
   error: '#3a0a0a',
 }
 
-const ORBIT_RADII = [0, 12, 22, 32, 42]
-const SCENE_HTML_Z: [number, number] = [0, -10]
-const DETAIL_HTML_Z: [number, number] = [2, -8]
+const ORBIT_RADII = [0, 17, 33, 48, 63]
+const SCENE_HTML_Z: [number, number] = [26, 10]
+const DETAIL_HTML_Z: [number, number] = [32, 14]
 const ORBIT_GRAY = '#7e8791'
 const ORBIT_GRAY_ACTIVE = '#848d97'
 const ORBIT_ACCENT = '#727b85'
 const ORBIT_DASH = '#676f79'
 const ORBIT_PLANE_Y = -0.18
 const ENABLE_FOCUS_ORBIT_PANELS = false
+const SHOW_VIEW_PORTALS = false
 const ignoreRaycast: THREE.Object3D['raycast'] = () => {}
 
 function layoutAgents(agents: AgentData[]): Map<string, { pos: [number, number, number]; orbit: number }> {
   const m = new Map<string, { pos: [number, number, number]; orbit: number }>()
   if (agents.length === 0) return m
   m.set(agents[0].id, { pos: [0, 0, 0], orbit: 0 })
+  const lastPreset = ORBIT_RADII[ORBIT_RADII.length - 1] ?? 58
+  const presetLastIndex = ORBIT_RADII.length - 1
   for (let i = 1; i < agents.length; i++) {
-    const r = ORBIT_RADII[i] ?? 12 + i * 10
+    const r = ORBIT_RADII[i] ?? (lastPreset + (i - presetLastIndex) * 14)
     const a = ((i - 1) / Math.max(agents.length - 1, 1)) * Math.PI * 2 - Math.PI / 2
     m.set(agents[i].id, { pos: [Math.cos(a) * r, 0, Math.sin(a) * r], orbit: r })
   }
@@ -157,21 +160,21 @@ const nebulaFrag = `
   void main() {
     vec3 dir = normalize(vWorldPos);
     float h = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
-    vec3 deep = vec3(0.008, 0.015, 0.037);
-    vec3 mid = vec3(0.012, 0.03, 0.067);
+    vec3 deep = vec3(0.006, 0.012, 0.029);
+    vec3 mid = vec3(0.01, 0.022, 0.051);
     vec3 color = mix(deep, mid, h);
 
     float t = uTime * 0.018;
     float cloudA = fbm(dir * 5.6 + vec3(t, -t * 0.7, t * 0.4));
     float cloudB = fbm(dir * 9.3 + vec3(-t * 1.15, t * 0.82, -t * 0.35));
-    float neb = smoothstep(0.43, 0.86, cloudA * 0.7 + cloudB * 0.3);
+    float neb = smoothstep(0.43, 0.86, cloudA * 0.7 + cloudB * 0.3) * 0.34;
 
-    color += vec3(0.08, 0.33, 0.44) * neb * 0.22;
-    color += vec3(0.04, 0.24, 0.2) * neb * 0.14;
+    color += vec3(0.08, 0.33, 0.44) * neb * 0.085;
+    color += vec3(0.04, 0.24, 0.2) * neb * 0.05;
 
     float starMask = smoothstep(0.955, 1.0, noise(dir * 180.0 + vec3(t * 2.0)));
     float stars = starMask * (0.35 + 0.65 * noise(dir * 420.0));
-    color += vec3(0.82, 0.92, 1.0) * stars * 0.65;
+    color += vec3(0.82, 0.92, 1.0) * stars * 0.38;
 
     gl_FragColor = vec4(color, 1.0);
   }
@@ -201,13 +204,13 @@ function SketchGrid() {
         const fade = Math.max(0.2, 1 - dist / range)
         const isMajor = Math.abs(x % (sp * 4)) < 0.1 && Math.abs(z % (sp * 4)) < 0.1
         const isMid = Math.abs(x % (sp * 4)) < 0.1 || Math.abs(z % (sp * 4)) < 0.1
-        als.push(isMajor ? fade * 0.34 : isMid ? fade * 0.18 : fade * 0.06)
+        als.push(isMajor ? fade * 0.15 : isMid ? fade * 0.08 : fade * 0.025)
         szs.push(isMajor ? 2.8 : isMid ? 1.8 : 1.1)
       }
     }
     return { positions: new Float32Array(pts), alphas: new Float32Array(als), sizes: new Float32Array(szs) }
   }, [])
-  const uniforms = useMemo(() => ({ uColor: { value: new THREE.Color('#2f465b') } }), [])
+  const uniforms = useMemo(() => ({ uColor: { value: new THREE.Color('#223547') } }), [])
   return (
     <points>
       <bufferGeometry>
@@ -240,17 +243,17 @@ function SketchGridLines() {
     }
     return segs
   }, [])
-  return <group>{lines.map((pts, i) => <Line key={i} points={pts} color="#243746" lineWidth={0.35} transparent opacity={0.055} />)}</group>
+  return <group>{lines.map((pts, i) => <Line key={i} points={pts} color="#203140" lineWidth={0.35} transparent opacity={0.026} />)}</group>
 }
 
 function GroundReference() {
   return (
     <group>
-      <gridHelper args={[180, 72, '#142a3c', '#0b1723']} position={[0, -0.16, 0]} />
-      <Line points={[[-92, -0.11, 0], [92, -0.11, 0]]} color="#28485f" lineWidth={0.7} transparent opacity={0.082} />
-      <Line points={[[0, -0.11, -92], [0, -0.11, 92]]} color="#28485f" lineWidth={0.7} transparent opacity={0.082} />
-      <Line points={[[-64, -0.11, -64], [64, -0.11, 64]]} color="#1b3144" lineWidth={0.45} transparent opacity={0.034} />
-      <Line points={[[-64, -0.11, 64], [64, -0.11, -64]]} color="#1b3144" lineWidth={0.45} transparent opacity={0.034} />
+      <gridHelper args={[180, 72, '#10202f', '#09131d']} position={[0, -0.16, 0]} />
+      <Line points={[[-92, -0.11, 0], [92, -0.11, 0]]} color="#224056" lineWidth={0.7} transparent opacity={0.04} />
+      <Line points={[[0, -0.11, -92], [0, -0.11, 92]]} color="#224056" lineWidth={0.7} transparent opacity={0.04} />
+      <Line points={[[-64, -0.11, -64], [64, -0.11, 64]]} color="#162e40" lineWidth={0.45} transparent opacity={0.016} />
+      <Line points={[[-64, -0.11, 64], [64, -0.11, -64]]} color="#162e40" lineWidth={0.45} transparent opacity={0.016} />
     </group>
   )
 }
@@ -370,10 +373,10 @@ function CosmicStars({
 function NeuralField() {
   const rootRef = useRef<THREE.Group>(null)
   const ringDefs = useMemo(() => ([
-    { radius: 10.5, y: 0.08, tilt: 0.12, speed: 0.065, opacity: 0.26, phase: 0.2 },
-    { radius: 16.5, y: -0.02, tilt: -0.24, speed: -0.045, opacity: 0.2, phase: -1.1 },
-    { radius: 24.0, y: 0.02, tilt: 0.35, speed: 0.032, opacity: 0.16, phase: 0.8 },
-    { radius: 32.0, y: -0.06, tilt: -0.16, speed: -0.022, opacity: 0.13, phase: -0.3 },
+    { radius: 10.5, y: 0.08, tilt: 0.12, speed: 0.065, opacity: 0.18, phase: 0.2 },
+    { radius: 16.5, y: -0.02, tilt: -0.24, speed: -0.045, opacity: 0.14, phase: -1.1 },
+    { radius: 24.0, y: 0.02, tilt: 0.35, speed: 0.032, opacity: 0.11, phase: 0.8 },
+    { radius: 32.0, y: -0.06, tilt: -0.16, speed: -0.022, opacity: 0.09, phase: -0.3 },
   ]), [])
   const rings = useMemo(
     () => ringDefs.map((d, i) => circlePoints(d.radius, d.y, 220, 0.14 + i * 0.03, 6 + i * 2)),
@@ -432,7 +435,7 @@ function AIUniverseBackdrop() {
         driftSpeed={0.002}
         twinkleSpeed={0.85}
         yScale={0.84}
-        opacity={0.9}
+        opacity={0.66}
       />
       <CosmicStars
         count={900}
@@ -443,7 +446,7 @@ function AIUniverseBackdrop() {
         driftSpeed={-0.0015}
         twinkleSpeed={1.2}
         yScale={0.72}
-        opacity={0.58}
+        opacity={0.36}
       />
       <NeuralField />
     </group>
@@ -712,6 +715,133 @@ function PlanetRing({ size, color, active }: { size: number; color: string; acti
   )
 }
 
+function ExecutionFX({
+  size,
+  color,
+  load,
+  active,
+}: {
+  size: number
+  color: string
+  load: number
+  active: boolean
+}) {
+  const groupRef = useRef<THREE.Group>(null)
+  const ringARef = useRef<THREE.Group>(null)
+  const ringBRef = useRef<THREE.Group>(null)
+  const pulseARef = useRef<THREE.Mesh>(null)
+  const pulseBRef = useRef<THREE.Mesh>(null)
+  const packetRefs = useRef<Array<THREE.Mesh | null>>([])
+
+  const loadNorm = Math.min(Math.max(load, 0) / 5, 1)
+  const intensity = Math.min(1, (active ? 0.45 : 0.25) + loadNorm * 0.42)
+  const rA = size * 1.72
+  const rB = size * 1.94
+  const rC = size * 2.16
+
+  const dataPathA = useMemo(() => circlePoints(rA, 0.02, 180, 0.05, 8), [rA])
+  const dataPathB = useMemo(() => circlePoints(rB, -0.01, 180, 0.06, 11), [rB])
+  const dataPathC = useMemo(() => circlePoints(rC, 0, 180, 0.04, 6), [rC])
+
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime
+    if (groupRef.current) groupRef.current.rotation.y = t * (0.12 + intensity * 0.2)
+    if (ringARef.current) {
+      ringARef.current.rotation.z = t * (0.35 + intensity * 0.75)
+      ringARef.current.rotation.y = Math.sin(t * 0.35) * 0.24
+    }
+    if (ringBRef.current) {
+      ringBRef.current.rotation.x = t * (0.22 + intensity * 0.42)
+      ringBRef.current.rotation.z = Math.cos(t * 0.28) * 0.2
+    }
+    if (pulseARef.current) {
+      const s = 1 + Math.sin(t * (2.5 + intensity * 2.4)) * (0.05 + intensity * 0.04)
+      pulseARef.current.scale.set(s, s, s)
+    }
+    if (pulseBRef.current) {
+      const s = 1 + Math.cos(t * (1.8 + intensity * 1.6)) * (0.04 + intensity * 0.03)
+      pulseBRef.current.scale.set(s, s, s)
+    }
+    packetRefs.current.forEach((packet, i) => {
+      if (!packet) return
+      const speed = 0.7 + intensity * 1.6 + i * 0.08
+      const a = t * speed + i * 2.1
+      const rad = i % 2 === 0 ? rA : rB
+      packet.position.set(
+        Math.cos(a) * rad,
+        Math.sin(a * 1.9 + i) * (0.16 + intensity * 0.18),
+        Math.sin(a) * rad,
+      )
+    })
+  })
+
+  return (
+    <group ref={groupRef} raycast={ignoreRaycast}>
+      <group ref={ringARef} rotation={[Math.PI * 0.44, 0, 0]}>
+        <mesh raycast={ignoreRaycast}>
+          <torusGeometry args={[rA, 0.015, 8, 110]} />
+          <meshBasicMaterial color="#7dd3fc" transparent opacity={0.18 + intensity * 0.18} />
+        </mesh>
+      </group>
+      <group ref={ringBRef} rotation={[Math.PI * 0.18, Math.PI * 0.25, Math.PI * 0.08]}>
+        <mesh raycast={ignoreRaycast}>
+          <torusGeometry args={[rB, 0.011, 8, 100]} />
+          <meshBasicMaterial color="#a7f3d0" transparent opacity={0.1 + intensity * 0.14} />
+        </mesh>
+      </group>
+
+      <Line
+        points={dataPathA}
+        color={color}
+        lineWidth={0.9}
+        transparent
+        opacity={0.18 + intensity * 0.25}
+        dashed
+        dashSize={0.35}
+        gapSize={0.2}
+        raycast={ignoreRaycast}
+      />
+      <Line
+        points={dataPathB}
+        color="#93c5fd"
+        lineWidth={0.75}
+        transparent
+        opacity={0.12 + intensity * 0.2}
+        dashed
+        dashSize={0.3}
+        gapSize={0.25}
+        raycast={ignoreRaycast}
+      />
+      <Line
+        points={dataPathC}
+        color="#c4b5fd"
+        lineWidth={0.58}
+        transparent
+        opacity={0.08 + intensity * 0.13}
+        raycast={ignoreRaycast}
+      />
+
+      <Sphere ref={pulseARef} args={[size * 1.92, 24, 24]} raycast={ignoreRaycast}>
+        <meshBasicMaterial color={color} transparent opacity={0.05 + intensity * 0.11} side={THREE.BackSide} />
+      </Sphere>
+      <Sphere ref={pulseBRef} args={[size * 2.2, 20, 20]} raycast={ignoreRaycast}>
+        <meshBasicMaterial color="#7dd3fc" transparent opacity={0.04 + intensity * 0.08} side={THREE.BackSide} />
+      </Sphere>
+
+      {[0, 1, 2, 3].map((i) => (
+        <mesh
+          key={`packet-${i}`}
+          ref={(el) => { packetRefs.current[i] = el }}
+          raycast={ignoreRaycast}
+        >
+          <sphereGeometry args={[0.05 + size * 0.022, 8, 8]} />
+          <meshBasicMaterial color={i % 2 === 0 ? '#93c5fd' : '#c4b5fd'} transparent opacity={0.82} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
 function PlanetSurface({ size, color, color2, active, isMain }: {
   size: number
   color: string
@@ -769,10 +899,10 @@ function MoonSurface({ radius, color, active }: {
 }
 
 // ── Planet ──
-function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, crons, connections, runningLoad, focusMode, isFocused }: {
+function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, crons, connections, runningLoad, focusMode }: {
   agent: AgentData; position: [number, number, number]; orbit: number
   selected: boolean; onClick: () => void; onDoubleClick?: () => void; crons: Task[]; connections?: number; runningLoad?: number
-  focusMode: boolean; isFocused: boolean
+  focusMode: boolean
 }) {
   const groupRef = useRef<THREE.Group>(null)
   const selRingRef = useRef<THREE.Mesh>(null)
@@ -786,7 +916,6 @@ function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, cron
   const size = isMain ? 2.8 : 1.5
   const model = agent.model.replace('anthropic/', '').replace('claude-', '')
   const showDetail = !focusMode && (selected || hovered)
-  const showName = !focusMode || isFocused
   const highlight = selected || hovered
 
   useFrame(({ clock }) => {
@@ -841,6 +970,7 @@ function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, cron
 
         {/* Equatorial ring */}
         <PlanetRing size={size} color={c} active={isExecuting} />
+        {isExecuting && <ExecutionFX size={size} color={c} load={runningLoad ?? 0} active={isActive} />}
 
         {/* Selection ring */}
         {highlight && (
@@ -865,25 +995,23 @@ function Planet({ agent, position, orbit, selected, onClick, onDoubleClick, cron
         ))}
 
         {/* Always-visible name tag */}
-        {showName && (
-          <Html position={[0, size + 1.05, 0]} center zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              background: '#05070cd8', border: `1px solid ${c}24`,
-              borderRadius: 999, padding: '3px 9px',
-              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-            }}>
-              <span style={{
-                width: 5, height: 5, borderRadius: '50%', background: c,
-                boxShadow: isExecuting ? `0 0 8px ${c}` : 'none',
-                opacity: isExecuting ? 1 : 0.75,
-              }} />
-              <span style={{ fontSize: 9, color: '#dbe4f3', fontWeight: 700, letterSpacing: '0.05em' }}>
-                {agent.label}
-              </span>
-            </div>
-          </Html>
-        )}
+        <Html position={[0, size + 1.05, 0]} center zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            background: '#05070cd8', border: `1px solid ${c}24`,
+            borderRadius: 999, padding: '3px 9px',
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          }}>
+            <span style={{
+              width: 5, height: 5, borderRadius: '50%', background: c,
+              boxShadow: isExecuting ? `0 0 8px ${c}` : 'none',
+              opacity: isExecuting ? 1 : 0.75,
+            }} />
+            <span style={{ fontSize: 9, color: '#dbe4f3', fontWeight: 700, letterSpacing: '0.05em' }}>
+              {agent.label}
+            </span>
+          </div>
+        </Html>
 
         {/* Rich hover/selected details */}
         {showDetail && (
@@ -991,12 +1119,17 @@ function Moon({ cron, index, total, planetSize }: {
         <pointLight intensity={isRunning ? 0.22 : 0.08} color={mc} distance={3.4} decay={2} />
         {/* Label */}
         <Html position={[0, 0.52, 0]} center zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-          <div style={{
+          <div title={moonName} style={{
             background: '#06060ae0', borderRadius: 3, padding: '1px 5px',
             border: `1px solid ${mc}2f`,
             fontSize: 7, lineHeight: 1.2, color: isRunning ? '#d9e7f5' : '#b6c3d1',
             fontFamily: "'JetBrains Mono', monospace",
-            maxWidth: 170, textAlign: 'center', whiteSpace: 'normal', wordBreak: 'break-word',
+            display: 'inline-block',
+            maxWidth: 170,
+            textAlign: 'center',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
           }}>
             {moonName}
           </div>
@@ -1089,12 +1222,18 @@ function Comet({ task, index }: { task: Task; index: number }) {
       )}
       {/* Label */}
       <Html position={[0, 0.45, 0]} center zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-        <div style={{
+        <div title={cometName} style={{
           background: '#06060ae0', borderRadius: 3, padding: '1px 6px',
           border: `1px solid ${c}2a`,
           fontSize: 8, color: isRunning ? '#cbe0ff' : '#a9b5c7',
           fontFamily: "'JetBrains Mono', monospace",
-          lineHeight: 1.2, whiteSpace: 'normal', maxWidth: 176, wordBreak: 'break-word', textAlign: 'center',
+          lineHeight: 1.2,
+          display: 'inline-block',
+          whiteSpace: 'nowrap',
+          maxWidth: 176,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          textAlign: 'center',
         }}>
           {cometName}
         </div>
@@ -1222,7 +1361,7 @@ function AmbientDust() {
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
-      <pointsMaterial size={0.08} color="#556677" sizeAttenuation transparent opacity={0.3} />
+      <pointsMaterial size={0.08} color="#556677" sizeAttenuation transparent opacity={0.18} />
     </points>
   )
 }
@@ -1353,7 +1492,7 @@ function FlowPortal({
         <sphereGeometry args={[1.2, 16, 16]} />
         <meshBasicMaterial color={meta.color} transparent opacity={glow} side={THREE.BackSide} />
       </mesh>
-      <Line points={[[0, -0.9, 0], [0, -2.4, 0]]} color={meta.color} lineWidth={0.7} transparent opacity={0.14} />
+      <Line points={[[0, -0.9, 0], [0, -2.4, 0]]} color={ORBIT_GRAY} lineWidth={0.7} transparent opacity={0.14} />
       <Html position={[0, -2.7, 0]} center zIndexRange={SCENE_HTML_Z} style={{ pointerEvents: 'none', userSelect: 'none' }}>
         <div
           style={{
@@ -1385,7 +1524,7 @@ function FlowConstellation({
   onSelect: (v: MainView) => void
 }) {
   const portals = useMemo(() => {
-    const radius = 54
+    const radius = 76
     return MAIN_VIEWS.map((flow, i) => {
       const a = (i / MAIN_VIEWS.length) * Math.PI * 2 - Math.PI / 2
       const x = Math.cos(a) * radius
@@ -1410,7 +1549,7 @@ function FlowConstellation({
         <Line
           key={`portal-line-${p.flow}`}
           points={[p.pos, [0, 0, 0]]}
-          color={MAIN_VIEW_META[p.flow].color}
+          color={ORBIT_GRAY}
           lineWidth={0.4}
           transparent
           opacity={p.flow === mainView ? 0.16 : 0.06}
@@ -1638,7 +1777,6 @@ function Scene({
             connections={connectionCounts.get(star.id) || 0}
             runningLoad={runningByAgent.get(star.id) || 0}
             focusMode={focusMode}
-            isFocused={focusedAgent?.id === star.id}
           />
         )
       })()}
@@ -1658,7 +1796,6 @@ function Scene({
             connections={connectionCounts.get(p.id) || 0}
             runningLoad={runningByAgent.get(p.id) || 0}
             focusMode={focusMode}
-            isFocused={focusedAgent?.id === p.id}
           />
         )
       })}
@@ -1688,11 +1825,11 @@ function Scene({
       {/* Comets */}
       {!focusMode && spawnTasks.map((t, i) => <Comet key={t.id} task={t} index={i} />)}
 
-      {!focusMode && <FlowConstellation mainView={mainView} onSelect={onMainViewChange} />}
+      {!focusMode && SHOW_VIEW_PORTALS && <FlowConstellation mainView={mainView} onSelect={onMainViewChange} />}
 
       <CameraController
         target={focusPos || [0, 0, 0]}
-        distance={focusedAgent ? focusSize + 5 : 30}
+        distance={focusedAgent ? focusSize + 5 : 34}
         enabled={!!focusedAgent}
       />
     </>
@@ -1741,7 +1878,7 @@ export function HubScene({
       style={{ position: 'relative', width: '100%', height: '100%' }}
       onContextMenu={(e) => e.preventDefault()}
     >
-      <Canvas camera={{ position: [0, 16, 30], fov: 48, near: 0.1, far: 300 }}
+      <Canvas camera={{ position: [0, 17, 36], fov: 48, near: 0.1, far: 300 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }} dpr={[1, 1.5]} style={{ background: '#03060c', zIndex: 0 }}>
         <Scene mainView={mainView} onMainViewChange={onMainViewChange} />
       </Canvas>
